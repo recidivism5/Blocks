@@ -5,6 +5,10 @@ I'm targetting a kind of mix between classic, alpha and beta. I don't want a net
 - [ ] Chunks stored in 2d MCRegion style files (maybe make it compatible with minecraft world files)
 - [ ] Procedural generation
 - [ ] Voxel global illumination (same type used in minecraft)
+- [ ] Day night cycle
+- [ ] Sun, moon and stars
+- [ ] Clouds
+- [ ] 3d audio
 - [ ] Full clone of crafting, furnace, chests
 - [ ] Trees
 - [ ] Water and lava
@@ -16,3 +20,5 @@ I'm targetting a kind of mix between classic, alpha and beta. I don't want a net
 - [ ] Boats
 - [ ] Minecarts
 - [ ] Plants
+- [ ] Food
+- [ ] Armor

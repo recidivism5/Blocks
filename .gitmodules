@@ -1,0 +1,12 @@
+[submodule "glfw"]
+	path = glfw
+	url = https://github.com/glfw/glfw
+[submodule "openal-soft"]
+	path = openal-soft
+	url = https://github.com/kcat/openal-soft
+[submodule "zlib"]
+	path = zlib
+	url = https://github.com/madler/zlib
+[submodule "libpng"]
+	path = libpng
+	url = https://github.com/glennrp/libpng
