@@ -6,11 +6,11 @@ include_directories(${OPENGL_INCLUDE_DIRS})
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW lib only")
 set(GLFW_INSTALL OFF CACHE BOOL "GLFW lib only")
-add_subdirectory(glfw)
+add_subdirectory(third_party/glfw)
 
-add_subdirectory(glad)
+add_subdirectory(third_party/glad)
 
-add_subdirectory(openal-soft)
+add_subdirectory(third_party/openal-soft)
 
 set(BLOCKS-SRC
 	src/main.c
