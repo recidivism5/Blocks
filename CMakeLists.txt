@@ -9,8 +9,12 @@ if( MSVC )
     SET( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ENTRY:mainCRTStartup" )
 endif()
 
+include_directories(glad/include)
 set( BLOCKS-SRC
-     src/*
+     glad/include/glad/glad.h
+     glad/include/KHR/khrplatform.h
+     glad/src/glad.c
+     src/main.c
      )
      
 add_executable( Blocks WIN32 ${BLOCKS-SRC} )
