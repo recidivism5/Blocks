@@ -18,8 +18,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 int main(void)
 {
     GLFWwindow* window;
-    GLuint vertex_buffer, vertex_shader, fragment_shader, program;
-    GLint mvp_location, vpos_location, vcol_location;
  
     glfwSetErrorCallback(error_callback);
  
@@ -44,8 +42,8 @@ int main(void)
  
     while (!glfwWindowShouldClose(window))
     {
+        int width,height;
         glfwGetFramebufferSize(window, &width, &height);
-        ratio = width / (float) height;
  
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
