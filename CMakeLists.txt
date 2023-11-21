@@ -9,16 +9,14 @@ if( MSVC )
     SET( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ENTRY:mainCRTStartup" )
 endif()
 
+add_subdirectory(glad/)
 include_directories(glad/include)
-set( BLOCKS-SRC
-     glad/include/glad/glad.h
-     glad/include/KHR/khrplatform.h
-     glad/src/glad.c
-     src/main.c
-     )
+set(BLOCKS-SRC
+	src/main.c
+)
      
 add_executable( Blocks WIN32 ${BLOCKS-SRC} )
-target_link_libraries( Blocks ${OPENGL_LIBRARIES} glfw )
+target_link_libraries( Blocks ${OPENGL_LIBRARIES} glfw glad)
 if( MSVC )
     if(${CMAKE_VERSION} VERSION_LESS "3.6.0") 
         message( "\n\t[ WARNING ]\n\n\tCMake version lower than 3.6.\n\n\t - Please update CMake and rerun; OR\n\t - Manually set 'Blocks' as StartUp Project in Visual Studio.\n" )
