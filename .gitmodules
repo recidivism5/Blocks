@@ -1,12 +1,12 @@
 [submodule "glfw"]
-	path = glfw
+	path = third_party/glfw
 	url = https://github.com/glfw/glfw.git
 [submodule "openal-soft"]
-	path = openal-soft
+	path = third_party/openal-soft
 	url = https://github.com/kcat/openal-soft.git
 [submodule "zlib"]
-	path = zlib
+	path = third_party/zlib
 	url = https://github.com/madler/zlib.git
 [submodule "libpng"]
-	path = libpng
+	path = third_party/libpng
 	url = https://github.com/glennrp/libpng.git
