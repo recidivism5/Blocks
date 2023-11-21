@@ -143,9 +143,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main.c" />
-    <ClCompile Include="test1.c" />
-    <ClCompile Include="test2.c" />
+    <ClCompile Include="src\main.c" />
+    <ClCompile Include="src\test1.c" />
+    <ClCompile Include="src\test2.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="readme.md" />
