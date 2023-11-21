@@ -1,17 +1,27 @@
-#ifdef INCLUDE_LEVEL
-#define INCLUDE_LEVEL 1
-#else
-#define INCLUDE_LEVEL 0
-#endif
-#pragma push_macro("INCLUDE_LEVEL")
+#define WIN32_LEAN_AND_MEAN
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <time.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <intrin.h>
+#define Assert(cond) do { if (!(cond)) __debugbreak(); } while (0)
 
-#include "test1.c"
+#include <windows.h>
+#include <windowsx.h>
+#include <dwmapi.h>
+#include <uxtheme.h>
+#include <vssym32.h>
+#include <shellapi.h>
+#include <shlobj_core.h>
+#include <shobjidl_core.h>
+#include <shlguid.h>
+#include <commdlg.h>
+#include <wincodec.h>
+#include <shlwapi.h>
+#include <GL/gl.h>
+#include "mgl.h"
 
-#pragma pop_macro("INCLUDE_LEVEL")
-
-void main(){
-	char joj[] = "THE FITNESS GRAM PACER TEST IS A %d STAGE AEROBIC CAPACITY TEST\n";
-	StringToLower(strlen(joj),joj);
-	srand(time(0));
-	printf(joj,randint(10));
-}
