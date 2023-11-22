@@ -4,9 +4,6 @@
 [submodule "openal-soft"]
 	path = third_party/openal-soft
 	url = https://github.com/kcat/openal-soft.git
-[submodule "zlib"]
-	path = third_party/zlib
-	url = https://github.com/madler/zlib.git
-[submodule "libpng"]
-	path = third_party/libpng
-	url = https://github.com/glennrp/libpng.git
+[submodule "deps-zlib-libpng"]
+	path = third_party/deps-zlib-libpng
+	url = https://github.com/awstanley/deps-zlib-libpng.git
