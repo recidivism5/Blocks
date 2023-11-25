@@ -1,63 +1,74 @@
+#ifdef INCLUDED
+#define INCLUDED 1
+#else
+#define INCLUDED 0
+#endif
+#pragma push_macro("INCLUDED")
+
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <zlib.h>
+#include <tinydir.h>
 
-static void error_callback(int error, const char* description)
+#include "world.c"
+#include "renderer.c"
+
+#pragma pop_macro("INCLUDED")
+
+void error_callback(int error, const char* description)
 {
-    fprintf(stderr, "Error: %s\n", description);
+	fprintf(stderr, "Error: %s\n", description);
 }
  
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	}
 }
  
-int main(void)
+void main(void)
 {
-    char *s = zlibVersion();
+	GLFWwindow* window;
+ 
+	glfwSetErrorCallback(error_callback);
+ 
+	if (!glfwInit()){
+		fatal_error("Failed to initialize GLFW");
+	}
+ 
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+ 
+	window = glfwCreateWindow(640, 480, "Blocks", NULL, NULL);
+	if (!window){
+		glfwTerminate();
+		fatal_error("Failed to create GLFW window");
+	}
+ 
+	glfwSetKeyCallback(window, key_callback);
+ 
+	glfwMakeContextCurrent(window);
+	gladLoadGL();
+	glfwSwapInterval(1);
 
-    GLFWwindow* window;
+	compile_shaders();
  
-    glfwSetErrorCallback(error_callback);
+	while (!glfwWindowShouldClose(window))
+	{
+		int width,height;
+		glfwGetFramebufferSize(window, &width, &height);
  
-    if (!glfwInit())
-        exit(EXIT_FAILURE);
+		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
  
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
  
-    window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
-    if (!window)
-    {
-        glfwTerminate();
-        exit(EXIT_FAILURE);
-    }
+	glfwDestroyWindow(window);
  
-    glfwSetKeyCallback(window, key_callback);
- 
-    glfwMakeContextCurrent(window);
-    gladLoadGL();
-    glfwSwapInterval(1);
- 
-    while (!glfwWindowShouldClose(window))
-    {
-        int width,height;
-        glfwGetFramebufferSize(window, &width, &height);
- 
-        glClearColor(1.0f,0.0f,0.0f,1.0f);
-        glViewport(0, 0, width, height);
-        glClear(GL_COLOR_BUFFER_BIT);
- 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
- 
-    glfwDestroyWindow(window);
- 
-    glfwTerminate();
-    exit(EXIT_SUCCESS);
+	glfwTerminate();
 }

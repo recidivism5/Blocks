@@ -1,3 +1,14 @@
+#ifdef INCLUDED
+#define INCLUDED 1
+#else
+#define INCLUDED 0
+#endif
+#pragma push_macro("INCLUDED")
+
+#include "base.c"
+
+#pragma pop_macro("INCLUDED")
+
 #define LIST_INIT(list)\
 	(list)->total = 0;\
 	(list)->used = 0;\
@@ -14,30 +25,32 @@ typedef struct type##List {\
 	size_t total, used;\
 	type *elements;\
 } type##List;\
-type *type##ListMakeRoom(type ## List *list, size_t count){\
+inline type *type##ListMakeRoom(type ## List *list, size_t count){\
 	if (list->used+count > list->total){\
 		if (!list->total) list->total = 1;\
 		while (list->used+count > list->total) list->total *= 2;\
-		list->elements = ReallocOrDie(list->elements,list->total*sizeof(type));\
+		list->elements = realloc_or_die(list->elements,list->total*sizeof(type));\
 	}\
 	return list->elements+list->used;\
 }\
-void type##ListMakeRoomAtIndex(type ## List *list, size_t index, size_t count){\
+inline void type##ListMakeRoomAtIndex(type ## List *list, size_t index, size_t count){\
 	type##ListMakeRoom(list,count);\
 	if (index != list->used) memmove(list->elements+index+count,list->elements+index,(list->used-index)*sizeof(type));\
 }\
-void type##ListInsert(type ## List *list, size_t index, type *elements, size_t count){\
+inline void type##ListInsert(type ## List *list, size_t index, type *elements, size_t count){\
 	type##ListMakeRoomAtIndex(list,index,count);\
 	memcpy(list->elements+index,elements,count*sizeof(type));\
 	list->used += count;\
 }\
-void type##ListAppend(type ## List *list, type *elements, size_t count){\
+inline void type##ListAppend(type ## List *list, type *elements, size_t count){\
 	type##ListMakeRoom(list,count);\
 	memcpy(list->elements+list->used,elements,count*sizeof(type));\
 	list->used += count;\
 }
 
-size_t fnv1a(size_t keylen, char *key){
+size_t fnv1a(size_t keylen, char *key)
+#if INCLUDED == 0
+{
 	size_t index = 2166136261u;
 	for (size_t i = 0; i < keylen; i++){
 		index ^= key[i];
@@ -45,6 +58,9 @@ size_t fnv1a(size_t keylen, char *key){
 	}
 	return index;
 }
+#else
+;
+#endif
 
 #define LINKED_HASHLIST_INIT(list)\
 	(list)->total = 0;\
@@ -68,7 +84,7 @@ typedef struct type##LinkedHashList {\
 	size_t total, used;\
 	type##LinkedHashListBucket *buckets, *first, *last;\
 } type##LinkedHashList;\
-type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, size_t keylen, char *key){\
+inline type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, size_t keylen, char *key){\
 	if (!list->total) return 0;\
 	size_t index = fnv1a(keylen,key);\
 	index %= list->total;\
@@ -81,21 +97,21 @@ type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *
 		index = (index + 1) % list->total;\
 	}\
 }\
-type *type##LinkedHashListGet(type##LinkedHashList *list, size_t keylen, char *key){\
+inline type *type##LinkedHashListGet(type##LinkedHashList *list, size_t keylen, char *key){\
 	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
 	if (bucket && bucket->keylen > 0) return &bucket->value;\
 	else return 0;\
 }\
-type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *key){\
+inline type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *key){\
 	if (!list->total){\
 		list->total = 8;\
-		list->buckets = ZallocOrDie(8*sizeof(*list->buckets));\
+		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
 	}\
 	if (list->used+1 > (list->total*3)/4){\
 		type##LinkedHashList newList;\
 		newList.total = list->total * 2;\
 		newList.used = list->used;\
-		newList.buckets = ZallocOrDie(newList.total*sizeof(*newList.buckets));\
+		newList.buckets = zalloc_or_die(newList.total*sizeof(*newList.buckets));\
 		for (type##LinkedHashListBucket *bucket = list->first; bucket;){\
 			type##LinkedHashListBucket *newBucket = type##LinkedHashListGetBucket(&newList,bucket->keylen,bucket->key);\
 			newBucket->keylen = bucket->keylen;\
@@ -134,7 +150,7 @@ type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *k
 	}\
 	return &bucket->value;\
 }\
-void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen, char *key){\
+inline void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen, char *key){\
 	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
 	if (bucket->keylen > 0){\
 		if (bucket->prev){\

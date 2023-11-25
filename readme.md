@@ -1,6 +1,6 @@
 # Blocks
 There are many partial minecraft clones out there. It's time to make a complete one.
-I'm targetting a kind of mix between classic, alpha and beta. I don't want a nether, slabs/stairs, beds or dungeons. But I do want colored wool.
+I'm targetting a kind of mix between classic, alpha and beta. I don't want a nether, slabs/stairs, beds or dungeons. But I do want colored wool. And bricks. Lol.
 ### Necessary features:
 - [ ] Chunks stored in 2d MCRegion style files (maybe make it compatible with minecraft world files)
 - [ ] Procedural generation
@@ -22,3 +22,5 @@ I'm targetting a kind of mix between classic, alpha and beta. I don't want a net
 - [ ] Plants
 - [ ] Food
 - [ ] Armor
+- [ ] Colored wool
+- [ ] Colored bricks
