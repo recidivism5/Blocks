@@ -11,7 +11,7 @@
 #include <zlib.h>
 #include <png.h>
 
-#include "base.c"
+#include "data_structures.c"
 
 #pragma pop_macro("INCLUDED")
 
@@ -128,6 +128,12 @@ GLuint compile_shader(char *name, char *vert_src, char *frag_src)
 ;
 #endif
 
+typedef struct {
+	float x,y,z, u,v;
+	uint32_t color;
+} TextureColorVertex;
+LIST_IMPLEMENTATION(TextureColorVertex)
+
 struct {
 	char *vert_src;
 	char *frag_src;
@@ -138,6 +144,7 @@ struct {
 	GLint uModel;
 	GLint uView;
 	GLint uProj;
+	GLint uTex;
 } texture_color_shader
 #if INCLUDED == 0
  = {
@@ -151,7 +158,7 @@ struct {
 	"varying vec2 vTexCoord;\n"
 	"varying vec4 vColor;\n"
 	"void main(){\n"
-	"	gl_Position = uProj * uView * uModel * vec4(aPosition,1.0);\n"
+	"	gl_Position = uProj * (uView * (uModel * vec4(aPosition,1.0)));\n"
 	"	vTexCoord = aTexCoord;\n"
 	"	vColor = aColor;\n"
 	"}",
@@ -171,6 +178,7 @@ struct {
 #define COMPILE_SHADER(s) s.id = compile_shader(#s,s.vert_src,s.frag_src)
 #define GET_ATTRIB(s,a) s.a = glGetAttribLocation(s.id,#a)
 #define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
+
 void compile_texture_color_shader()
 #if INCLUDED == 0
 {
@@ -181,10 +189,26 @@ void compile_texture_color_shader()
 	GET_UNIFORM(texture_color_shader,uModel);
 	GET_UNIFORM(texture_color_shader,uView);
 	GET_UNIFORM(texture_color_shader,uProj);
+	GET_UNIFORM(texture_color_shader,uTex);
 }
 #else
 ;
 #endif
+
+void texture_color_shader_prep_buffer()
+#if INCLUDED == 0
+{
+	glEnableVertexAttribArray(texture_color_shader.aPosition);
+	glEnableVertexAttribArray(texture_color_shader.aTexCoord);
+	glEnableVertexAttribArray(texture_color_shader.aColor);
+	glVertexAttribPointer(texture_color_shader.aPosition,3,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),0);
+	glVertexAttribPointer(texture_color_shader.aTexCoord,2,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,u));
+	glVertexAttribPointer(texture_color_shader.aColor,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,color));
+}
+#else
+;
+#endif
+
 void compile_shaders()
 #if INCLUDED == 0
 {

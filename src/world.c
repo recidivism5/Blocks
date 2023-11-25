@@ -13,7 +13,7 @@
 #include <tinydir.h>
 #include <cglm/cglm.h>
 
-#include "data_structures.c"
+#include "renderer.c"
 
 #pragma pop_macro("INCLUDED")
 
@@ -80,13 +80,6 @@ void gen_chunk(Chunk *c)
 ;
 #endif
 
-typedef struct {
-	float x,y,z, u,v;
-	uint32_t color;
-} BlockVertex;
-
-LIST_IMPLEMENTATION(BlockVertex)
-
 #if INCLUDED == 0
 vec3 cube_verts[] = {
 	0,1,0, 0,0,0, 0,0,1, 0,0,1, 0,1,1, 0,1,0,
@@ -102,16 +95,19 @@ vec3 cube_verts[] = {
 extern vec3 cube_verts[];
 #endif
 
-void append_block_face(BlockVertexList *bvl, int x, int y, int z, int face_id, BlockType *bt)
+void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt)
 #if INCLUDED == 0
 {
-	BlockVertex *v = BlockVertexListMakeRoom(bvl,6);
+	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
+	tvl->used += 6;
 	for (int i = 0; i < 6; i++){
 		v[i].x = x + cube_verts[face_id*6+i][0];
 		v[i].y = y + cube_verts[face_id*6+i][1];
 		v[i].z = z + cube_verts[face_id*6+i][2];
+
+		v[i].color = 0xffffffff;
 	}
-	float w = 1.0f/16;
+	float w = 1.0f/16.0f;
 
 	v[0].u = w*bt->faces[face_id][0];
 	v[0].v = w*(16-bt->faces[face_id][1]);
@@ -120,7 +116,7 @@ void append_block_face(BlockVertexList *bvl, int x, int y, int z, int face_id, B
 	v[1].v = v[0].v - w;
 
 	v[2].u = v[0].u + w;
-	v[2].v = v[1].u;
+	v[2].v = v[1].v;
 
 	v[3].u = v[2].u;
 	v[3].v = v[2].v;
@@ -138,7 +134,7 @@ void append_block_face(BlockVertexList *bvl, int x, int y, int z, int face_id, B
 void mesh_chunk(Chunk *c)
 #if INCLUDED == 0
 {
-	BlockVertexList bvl = {0};
+	TextureColorVertexList tvl = {0};
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
@@ -146,27 +142,34 @@ void mesh_chunk(Chunk *c)
 				if (id){
 					BlockType *bt = block_types + id;
 					if (x == 0 || !c->block_ids[BLOCK_AT(x-1,y,z)]){
-						append_block_face(&bvl,x,y,z,0,bt);
+						append_block_face(&tvl,x,y,z,0,bt);
 					}
 					if (x == (CHUNK_WIDTH-1) || !c->block_ids[BLOCK_AT(x+1,y,z)]){
-						append_block_face(&bvl,x,y,z,1,bt);
+						append_block_face(&tvl,x,y,z,1,bt);
 					}
 					if (y == 0 || !c->block_ids[BLOCK_AT(x,y-1,z)]){
-						append_block_face(&bvl,x,y,z,2,bt);
+						append_block_face(&tvl,x,y,z,2,bt);
 					}
 					if (y == (CHUNK_HEIGHT-1) || !c->block_ids[BLOCK_AT(x,y+1,z)]){
-						append_block_face(&bvl,x,y,z,3,bt);
+						append_block_face(&tvl,x,y,z,3,bt);
 					}
 					if (z == 0 || !c->block_ids[BLOCK_AT(x,y,z-1)]){
-						append_block_face(&bvl,x,y,z,4,bt);
+						append_block_face(&tvl,x,y,z,4,bt);
 					}
 					if (z == (CHUNK_WIDTH-1) || !c->block_ids[BLOCK_AT(x,y,z+1)]){
-						append_block_face(&bvl,x,y,z,5,bt);
+						append_block_face(&tvl,x,y,z,5,bt);
 					}
 				}
 			}
 		}
 	}
+	if (!c->vbo_id){
+		glGenBuffers(1,&c->vbo_id);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
+	glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
+	c->vertex_count = tvl.used;
+	free(tvl.elements);
 }
 #else
 ;
