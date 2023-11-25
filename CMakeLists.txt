@@ -27,6 +27,7 @@ add_subdirectory(third_party/cglm)
 
 set(BLOCKS-SRC
 	src/base.c
+	src/camera.c
 	src/data_structures.c
 	src/main.c
 	src/renderer.c

@@ -25,7 +25,7 @@ typedef struct type##List {\
 	size_t total, used;\
 	type *elements;\
 } type##List;\
-inline type *type##ListMakeRoom(type ## List *list, size_t count){\
+type *type##ListMakeRoom(type ## List *list, size_t count){\
 	if (list->used+count > list->total){\
 		if (!list->total) list->total = 1;\
 		while (list->used+count > list->total) list->total *= 2;\
@@ -33,20 +33,29 @@ inline type *type##ListMakeRoom(type ## List *list, size_t count){\
 	}\
 	return list->elements+list->used;\
 }\
-inline void type##ListMakeRoomAtIndex(type ## List *list, size_t index, size_t count){\
+void type##ListMakeRoomAtIndex(type ## List *list, size_t index, size_t count){\
 	type##ListMakeRoom(list,count);\
 	if (index != list->used) memmove(list->elements+index+count,list->elements+index,(list->used-index)*sizeof(type));\
 }\
-inline void type##ListInsert(type ## List *list, size_t index, type *elements, size_t count){\
+void type##ListInsert(type ## List *list, size_t index, type *elements, size_t count){\
 	type##ListMakeRoomAtIndex(list,index,count);\
 	memcpy(list->elements+index,elements,count*sizeof(type));\
 	list->used += count;\
 }\
-inline void type##ListAppend(type ## List *list, type *elements, size_t count){\
+void type##ListAppend(type ## List *list, type *elements, size_t count){\
 	type##ListMakeRoom(list,count);\
 	memcpy(list->elements+list->used,elements,count*sizeof(type));\
 	list->used += count;\
 }
+#define LIST_HEADER(type)\
+typedef struct type##List {\
+	size_t total, used;\
+	type *elements;\
+} type##List;\
+type *type##ListMakeRoom(type ## List *list, size_t count);\
+void type##ListMakeRoomAtIndex(type ## List *list, size_t index, size_t count);\
+void type##ListInsert(type ## List *list, size_t index, type *elements, size_t count);\
+void type##ListAppend(type ## List *list, type *elements, size_t count);
 
 size_t fnv1a(size_t keylen, char *key)
 #if INCLUDED == 0
@@ -84,7 +93,7 @@ typedef struct type##LinkedHashList {\
 	size_t total, used;\
 	type##LinkedHashListBucket *buckets, *first, *last;\
 } type##LinkedHashList;\
-inline type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, size_t keylen, char *key){\
+type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, size_t keylen, char *key){\
 	if (!list->total) return 0;\
 	size_t index = fnv1a(keylen,key);\
 	index %= list->total;\
@@ -97,12 +106,12 @@ inline type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHas
 		index = (index + 1) % list->total;\
 	}\
 }\
-inline type *type##LinkedHashListGet(type##LinkedHashList *list, size_t keylen, char *key){\
+type *type##LinkedHashListGet(type##LinkedHashList *list, size_t keylen, char *key){\
 	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
 	if (bucket && bucket->keylen > 0) return &bucket->value;\
 	else return 0;\
 }\
-inline type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *key){\
+type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *key){\
 	if (!list->total){\
 		list->total = 8;\
 		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
@@ -150,7 +159,7 @@ inline type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, 
 	}\
 	return &bucket->value;\
 }\
-inline void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen, char *key){\
+void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen, char *key){\
 	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
 	if (bucket->keylen > 0){\
 		if (bucket->prev){\
@@ -169,3 +178,18 @@ inline void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen
 		list->used--;\
 	}\
 }
+#define LINKED_HASHLIST_HEADER(type)\
+typedef struct type##LinkedHashListBucket {\
+	struct type##LinkedHashListBucket *prev, *next;\
+	size_t keylen;\
+	char *key;\
+	type value;\
+} type##LinkedHashListBucket;\
+typedef struct type##LinkedHashList {\
+	size_t total, used;\
+	type##LinkedHashListBucket *buckets, *first, *last;\
+} type##LinkedHashList;\
+type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, size_t keylen, char *key);\
+type *type##LinkedHashListGet(type##LinkedHashList *list, size_t keylen, char *key);\
+type *type##LinkedHashListNew(type##LinkedHashList *list, size_t keylen, char *key);\
+void type##LinkedHashListRemove(type##LinkedHashList *list, size_t keylen, char *key);

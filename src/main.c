@@ -82,20 +82,6 @@ void main(void)
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
-		/*TextureColorVertex screen_quad[] = {
-			{0,1,0, 0,1, 0xffffffff},
-			{0,0,0, 0,0, 0xffffffff},
-			{1,0,0, 1,0, 0xffffffff},
-
-			{1,0,0, 1,0, 0xffffffff},
-			{1,1,0, 1,1, 0xffffffff},
-			{0,1,0, 0,1, 0xffffffff}
-		};
-		GLuint buf;
-		glGenBuffers(1,&buf);
-		glBindBuffer(GL_ARRAY_BUFFER,buf);
-		glBufferData(GL_ARRAY_BUFFER,sizeof(screen_quad),screen_quad,GL_STATIC_DRAW);*/
-
 		glUseProgram(texture_color_shader.id);
 		glUniform1i(texture_color_shader.uTex,0);
 		glActiveTexture(GL_TEXTURE0);
@@ -109,9 +95,7 @@ void main(void)
 		glUniformMatrix4fv(texture_color_shader.uProj,1,GL_FALSE,proj);
 		glBindBuffer(GL_ARRAY_BUFFER,chunk.vbo_id);
 		texture_color_shader_prep_buffer();
-		//glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
 		glDrawArrays(GL_TRIANGLES,0,chunk.vertex_count);
-		//glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
 
 		glCheckError();
  

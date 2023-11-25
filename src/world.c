@@ -57,6 +57,11 @@ typedef struct {
 	GLuint vbo_id;
 	int vertex_count;
 } Chunk;
+#if INCLUDED == 0
+LINKED_HASHLIST_IMPLEMENTATION(Chunk)
+#else
+LINKED_HASHLIST_HEADER(Chunk)
+#endif
 
 #define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
 void gen_chunk(Chunk *c)
@@ -169,7 +174,9 @@ void mesh_chunk(Chunk *c)
 	glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
 	glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
 	c->vertex_count = tvl.used;
-	free(tvl.elements);
+	if (tvl.elements){
+		free(tvl.elements);
+	}
 }
 #else
 ;
@@ -184,8 +191,12 @@ typedef struct {
 	int sector_count;
 	bool *sector_usage;
 } Region;
-LINKED_HASHLIST_IMPLEMENTATION(Chunk)
+#if INCLUDED == 0
 LINKED_HASHLIST_IMPLEMENTATION(Region)
+#else
+LINKED_HASHLIST_HEADER(Region)
+#endif
+
 typedef struct {
 	ChunkLinkedHashList chunks;
 	RegionLinkedHashList regions;

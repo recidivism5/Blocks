@@ -132,7 +132,11 @@ typedef struct {
 	float x,y,z, u,v;
 	uint32_t color;
 } TextureColorVertex;
+#if INCLUDED == 0
 LIST_IMPLEMENTATION(TextureColorVertex)
+#else
+LIST_HEADER(TextureColorVertex)
+#endif
 
 struct {
 	char *vert_src;
