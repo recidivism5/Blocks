@@ -7,3 +7,12 @@
 [submodule "deps-zlib-libpng"]
 	path = third_party/deps-zlib-libpng
 	url = https://github.com/awstanley/deps-zlib-libpng.git
+[submodule "Boxer"]
+	path = third_party/Boxer
+	url = https://github.com/aaronmjacobs/Boxer.git
+[submodule "tinydir"]
+	path = third_party/tinydir
+	url = https://github.com/cxong/tinydir.git
+[submodule "cglm"]
+	path = third_party/cglm
+	url = https://github.com/recp/cglm.git
