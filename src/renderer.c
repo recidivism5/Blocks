@@ -52,7 +52,7 @@ void texture_from_file(Texture *t, char *path)
 		fatal_error("texture_from_file: failed to load %s",path);
 	}
 	image.format = PNG_FORMAT_RGBA;
-	png_byte *buffer = malloc(PNG_IMAGE_SIZE(image));
+	png_byte *buffer = malloc_or_die(PNG_IMAGE_SIZE(image));
 	// a negative stride indicates that the bottom-most row is first in the buffer
 	// (as expected by openGL)
 	if (!png_image_finish_read(&image, NULL, buffer, -image.width*4, NULL)) {
@@ -145,9 +145,7 @@ struct {
 	GLint aPosition;
 	GLint aTexCoord;
 	GLint aColor;
-	GLint uModel;
-	GLint uView;
-	GLint uProj;
+	GLint uMVP;
 	GLint uTex;
 } texture_color_shader
 #if INCLUDED == 0
@@ -156,13 +154,11 @@ struct {
 	"attribute vec3 aPosition;\n"
 	"attribute vec2 aTexCoord;\n"
 	"attribute vec4 aColor;\n"
-	"uniform mat4 uModel;\n"
-	"uniform mat4 uView;\n"
-	"uniform mat4 uProj;\n"
+	"uniform mat4 uMVP;\n"
 	"varying vec2 vTexCoord;\n"
 	"varying vec4 vColor;\n"
 	"void main(){\n"
-	"	gl_Position = uProj * (uView * (uModel * vec4(aPosition,1.0)));\n"
+	"	gl_Position = uMVP * vec4(aPosition,1.0);\n"
 	"	vTexCoord = aTexCoord;\n"
 	"	vColor = aColor;\n"
 	"}",
@@ -190,9 +186,7 @@ void compile_texture_color_shader()
 	GET_ATTRIB(texture_color_shader,aPosition);
 	GET_ATTRIB(texture_color_shader,aTexCoord);
 	GET_ATTRIB(texture_color_shader,aColor);
-	GET_UNIFORM(texture_color_shader,uModel);
-	GET_UNIFORM(texture_color_shader,uView);
-	GET_UNIFORM(texture_color_shader,uProj);
+	GET_UNIFORM(texture_color_shader,uMVP);
 	GET_UNIFORM(texture_color_shader,uTex);
 }
 #else

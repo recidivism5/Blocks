@@ -23,6 +23,9 @@ https://www.minecraftforum.net/forums/mapping-and-modding-java-edition/minecraft
 
 Further comment from Scaevolus:
 https://www.reddit.com/r/Minecraft/comments/evzbs/comment/c1bg51k/?utm_source=share&utm_medium=web2x&context=3
+
+Map format:
+https://wiki.vg/Map_Format
 */
 typedef struct {
 	char *name;
@@ -52,8 +55,10 @@ typedef enum {
 #define CHUNK_WIDTH 16
 #define CHUNK_HEIGHT 256
 typedef struct {
-	uint8_t block_ids[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
-	uint8_t block_light_values[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
+	uint8_t id, r, g, b;
+} Block;
+typedef struct {
+	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
 	GLuint vbo_id;
 	int vertex_count;
 } Chunk;
@@ -71,11 +76,11 @@ void gen_chunk(Chunk *c)
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
 				if (y < 31){
-					c->block_ids[BLOCK_AT(x,y,z)] = BLOCK_DIRT;
+					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
 				} else if (y == 31){
-					c->block_ids[BLOCK_AT(x,y,z)] = BLOCK_GRASS;
+					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_GRASS;
 				} else {
-					c->block_ids[BLOCK_AT(x,y,z)] = BLOCK_AIR;
+					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
 				}
 			}
 		}
@@ -143,25 +148,25 @@ void mesh_chunk(Chunk *c)
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				BlockId id = c->block_ids[BLOCK_AT(x,y,z)];
+				BlockId id = c->blocks[BLOCK_AT(x,y,z)].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if (x == 0 || !c->block_ids[BLOCK_AT(x-1,y,z)]){
+					if (x == 0 || !c->blocks[BLOCK_AT(x-1,y,z)].id){
 						append_block_face(&tvl,x,y,z,0,bt);
 					}
-					if (x == (CHUNK_WIDTH-1) || !c->block_ids[BLOCK_AT(x+1,y,z)]){
+					if (x == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x+1,y,z)].id){
 						append_block_face(&tvl,x,y,z,1,bt);
 					}
-					if (y == 0 || !c->block_ids[BLOCK_AT(x,y-1,z)]){
+					if (y == 0 || !c->blocks[BLOCK_AT(x,y-1,z)].id){
 						append_block_face(&tvl,x,y,z,2,bt);
 					}
-					if (y == (CHUNK_HEIGHT-1) || !c->block_ids[BLOCK_AT(x,y+1,z)]){
+					if (y == (CHUNK_HEIGHT-1) || !c->blocks[BLOCK_AT(x,y+1,z)].id){
 						append_block_face(&tvl,x,y,z,3,bt);
 					}
-					if (z == 0 || !c->block_ids[BLOCK_AT(x,y,z-1)]){
+					if (z == 0 || !c->blocks[BLOCK_AT(x,y,z-1)].id){
 						append_block_face(&tvl,x,y,z,4,bt);
 					}
-					if (z == (CHUNK_WIDTH-1) || !c->block_ids[BLOCK_AT(x,y,z+1)]){
+					if (z == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x,y,z+1)].id){
 						append_block_face(&tvl,x,y,z,5,bt);
 					}
 				}
