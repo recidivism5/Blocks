@@ -63,21 +63,22 @@ typedef struct {
 	int vertex_count;
 } Chunk;
 #if INCLUDED == 0
-LINKED_HASHLIST_IMPLEMENTATION(Chunk)
+FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(Chunk,sizeof(ivec2))
 #else
-LINKED_HASHLIST_HEADER(Chunk)
+FIXED_KEY_LINKED_HASHLIST_HEADER(Chunk,sizeof(ivec2))
 #endif
 
 #define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
 void gen_chunk(Chunk *c)
 #if INCLUDED == 0
 {
+	int h = rand_int(CHUNK_HEIGHT/8);
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				if (y < 31){
+				if (y < h){
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
-				} else if (y == 31){
+				} else if (y == h){
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_GRASS;
 				} else {
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
@@ -197,12 +198,12 @@ typedef struct {
 	bool *sector_usage;
 } Region;
 #if INCLUDED == 0
-LINKED_HASHLIST_IMPLEMENTATION(Region)
+FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(Region,sizeof(ivec2))
 #else
-LINKED_HASHLIST_HEADER(Region)
+FIXED_KEY_LINKED_HASHLIST_HEADER(Region,sizeof(ivec2))
 #endif
 
 typedef struct {
-	ChunkLinkedHashList chunks;
-	RegionLinkedHashList regions;
+	RegionFixedKeyLinkedHashList regions;
+	ChunkFixedKeyLinkedHashList chunks;
 } World;

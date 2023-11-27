@@ -22,14 +22,15 @@ Camera camera = {
 	.fov_radians = 0.5f*M_PI
 };
 Texture block_atlas;
-Chunk chunk;
+World world;
+int chunk_radius = 4;
 
 void error_callback(int error, const char* description)
 {
 	fprintf(stderr, "Error: %s\n", description);
 }
 
-int camDir[3];
+int cam_dir[3];
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	switch (action){
@@ -39,19 +40,19 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 					glfwSetWindowShouldClose(window, GLFW_TRUE);
 					break;
 				}
-				case GLFW_KEY_A: if (!camDir[0]) camDir[0] = -1; else if (camDir[0] == 1) camDir[0] = 2; break;
-				case GLFW_KEY_D: if (!camDir[0]) camDir[0] = 1; else if (camDir[0] == -1) camDir[0] = -2; break;
-				case GLFW_KEY_S: if (!camDir[2]) camDir[2] = -1; else if (camDir[2] == 1) camDir[2] = 2; break;
-				case GLFW_KEY_W: if (!camDir[2]) camDir[2] = 1; else if (camDir[2] == -1) camDir[2] = -2; break;
+				case GLFW_KEY_A: if (!cam_dir[0]) cam_dir[0] = -1; else if (cam_dir[0] == 1) cam_dir[0] = 2; break;
+				case GLFW_KEY_D: if (!cam_dir[0]) cam_dir[0] = 1; else if (cam_dir[0] == -1) cam_dir[0] = -2; break;
+				case GLFW_KEY_S: if (!cam_dir[2]) cam_dir[2] = -1; else if (cam_dir[2] == 1) cam_dir[2] = 2; break;
+				case GLFW_KEY_W: if (!cam_dir[2]) cam_dir[2] = 1; else if (cam_dir[2] == -1) cam_dir[2] = -2; break;
 			}
 			break;
 		}
 		case GLFW_RELEASE:{
 			switch (key){
-				case GLFW_KEY_A: if (camDir[0] == -1) camDir[0] = 0; else if (camDir[0] == -2) camDir[0] = 1; else if (camDir[0] == 2) camDir[0] = 1; break;
-				case GLFW_KEY_D: if (camDir[0] == 1) camDir[0] = 0; else if (camDir[0] == 2) camDir[0] = -1; else if (camDir[0] == -2) camDir[0] = -1; break;
-				case GLFW_KEY_S: if (camDir[2] == -1) camDir[2] = 0; else if (camDir[2] == -2) camDir[2] = 1; else if (camDir[2] == 2) camDir[2] = 1; break;
-				case GLFW_KEY_W: if (camDir[2] == 1) camDir[2] = 0; else if (camDir[2] == 2) camDir[2] = -1; else if (camDir[2] == -2) camDir[2] = -1; break;
+				case GLFW_KEY_A: if (cam_dir[0] == -1) cam_dir[0] = 0; else if (cam_dir[0] == -2) cam_dir[0] = 1; else if (cam_dir[0] == 2) cam_dir[0] = 1; break;
+				case GLFW_KEY_D: if (cam_dir[0] == 1) cam_dir[0] = 0; else if (cam_dir[0] == 2) cam_dir[0] = -1; else if (cam_dir[0] == -2) cam_dir[0] = -1; break;
+				case GLFW_KEY_S: if (cam_dir[2] == -1) cam_dir[2] = 0; else if (cam_dir[2] == -2) cam_dir[2] = 1; else if (cam_dir[2] == 2) cam_dir[2] = 1; break;
+				case GLFW_KEY_W: if (cam_dir[2] == 1) cam_dir[2] = 0; else if (cam_dir[2] == 2) cam_dir[2] = -1; else if (cam_dir[2] == -2) cam_dir[2] = -1; break;
 			}
 			break;
 		}
@@ -73,11 +74,79 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos){
 	rotate_camera(&camera,xpos,ypos,-0.001f);
 	glfwSetCursorPos(window, 0, 0);
 }
+
+GLFWwindow *create_centered_window(int width, int height, char *title){
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+	GLFWwindow *window = glfwCreateWindow(width,height,title,NULL,NULL);
+	if (!window){
+		glfwTerminate();
+		fatal_error("Failed to create GLFW window");
+	}
+	GLFWmonitor *primary = glfwGetPrimaryMonitor();
+	if (!primary){
+		glfwTerminate();
+		fatal_error("Failed to get primary monitor");
+	}
+	GLFWvidmode *vm = glfwGetVideoMode(primary);
+	if (!vm){
+		glfwTerminate();
+		fatal_error("Failed to get primary monitor video mode");
+	}
+	glfwSetWindowPos(window,(vm->width-width)/2,(vm->height-height)/2);
+	glfwShowWindow(window);
+	return window;
+}
+
+void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos){
+	int i = floorf(world_pos[0]);
+	int k = floorf(world_pos[2]);
+	chunk_pos[0] = (i < 0 ? -1 : 0) + i/CHUNK_WIDTH;
+	chunk_pos[1] = (k < 0 ? -1 : 0) + k/CHUNK_WIDTH;
+}
+
+int manhattan_distance_2d(ivec2 a, ivec2 b){
+	return abs(a[0]-b[0]) + abs(a[1]-b[1]);
+}
+
+typedef struct {
+	ivec2 initial_pos;
+	ivec2 cur_pos;
+	ivec2 c;
+	int steps;
+	int radius;
+} ManhattanSpiralGenerator;
+
+void manhattan_spiral_generator_init(ManhattanSpiralGenerator *g, ivec2 initial_pos){
+	g->initial_pos[0] = initial_pos[0];
+	g->initial_pos[1] = initial_pos[1];
+	g->cur_pos[0] = initial_pos[0];
+	g->cur_pos[1] = initial_pos[1];
+	g->steps = 0;
+	g->radius = 0;
+}
+
+void manhattan_spiral_generator_get_next_position(ManhattanSpiralGenerator *g){
+	if (g->steps == 4*g->radius){
+		g->cur_pos[1] = g->initial_pos[1];
+		g->radius += 1;
+		g->cur_pos[0] = g->initial_pos[0] + g->radius;
+		g->steps = 1;
+		g->c[0] = 1;
+		g->c[1] = 1;
+	} else {
+		if (g->cur_pos[0] == g->initial_pos[0]){
+			g->c[1] = -g->c[1];
+		} else if (g->cur_pos[1] == g->initial_pos[1]){
+			g->c[0] = -g->c[0];
+		}
+		g->cur_pos[0] += g->c[0];
+		g->cur_pos[1] += g->c[1];
+		g->steps++;
+	}
+}
  
 void main(void)
 {
-	GLFWwindow* window;
- 
 	glfwSetErrorCallback(error_callback);
  
 	if (!glfwInit()){
@@ -86,12 +155,7 @@ void main(void)
  
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
- 
-	window = glfwCreateWindow(640, 480, "Blocks", NULL, NULL);
-	if (!window){
-		glfwTerminate();
-		fatal_error("Failed to create GLFW window");
-	}
+	GLFWwindow *window = create_centered_window(640,480,"Blocks");
  
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	if (glfwRawMouseMotionSupported()){
@@ -108,9 +172,7 @@ void main(void)
 	compile_shaders();
 
 	texture_from_file(&block_atlas,"../res/blocks.png");
-	chunk.vbo_id = 0;
-	gen_chunk(&chunk);
-	mesh_chunk(&chunk);
+	srand(time(0));
 
 	double t0 = glfwGetTime();
  
@@ -120,16 +182,40 @@ void main(void)
 		double dt = t1 - t0;
 		t0 = t1;
 
-		//move camera based on camDir
+		//move camera based on cam_dir
 		mat4 crot;
 		glm_euler_zyx(camera.euler,crot);
 		vec3 forward, right;
 		glm_vec3(crot[2],forward);
 		glm_vec3(crot[0],right);
-		glm_vec3_scale(forward,glm_sign(-camDir[2])*2.0f*dt,forward);
-		glm_vec3_scale(right,glm_sign(camDir[0])*2.0f*dt,right);
+		glm_vec3_scale(forward,glm_sign(-cam_dir[2])*20.0f*dt,forward);
+		glm_vec3_scale(right,glm_sign(cam_dir[0])*20.0f*dt,right);
 		glm_vec3_add(camera.position,forward,camera.position);
 		glm_vec3_add(camera.position,right,camera.position);
+
+		ivec2 chunk_pos;
+		world_pos_to_chunk_pos(camera.position,chunk_pos);
+		ManhattanSpiralGenerator msg;
+		manhattan_spiral_generator_init(&msg,chunk_pos);
+		while (msg.radius <= chunk_radius){
+			Chunk *c = ChunkFixedKeyLinkedHashListGet(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
+			if (!c){
+				//find out of range chunk, replace with new chunk
+				//if none found, add new chunk to hashlist
+				ChunkFixedKeyLinkedHashListBucket *b = world.chunks.first;
+				while (b && manhattan_distance_2d(b->key,chunk_pos) <= chunk_radius){
+					b = b->next;
+				}
+				if (b){
+					ChunkFixedKeyLinkedHashListRemove(&world.chunks,b);
+				}
+				Chunk *new_chunk = ChunkFixedKeyLinkedHashListNew(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
+				gen_chunk(new_chunk);
+				mesh_chunk(new_chunk);
+			}
+			manhattan_spiral_generator_get_next_position(&msg);
+		}
+		printf("chunk_count: %zu\n",world.chunks.used);
 
 		int width,height;
 		glfwGetFramebufferSize(window, &width, &height);
@@ -147,18 +233,27 @@ void main(void)
 		glUniform1i(texture_color_shader.uTex,0);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D,block_atlas.id);
-		glm_mat4_transpose(crot);
-		mat4 view;
-		glm_translate_make(view,(vec3){-camera.position[0],-camera.position[1],-camera.position[2]});
-		glm_mat4_mul(crot,view,view);
-		mat4 persp;
-		glm_perspective(camera.fov_radians,(float)width/(float)height,0.01f,1000.0f,persp);
-		mat4 mvp;
-		glm_mat4_mul(persp,view,mvp);
-		glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-		glBindBuffer(GL_ARRAY_BUFFER,chunk.vbo_id);
-		texture_color_shader_prep_buffer();
-		glDrawArrays(GL_TRIANGLES,0,chunk.vertex_count);
+		for (ChunkFixedKeyLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
+			mat4 inv_crot;
+			glm_mat4_transpose_to(crot,inv_crot);
+			mat4 view;
+			vec3 trans = {
+				((int *)b->key)[0] * 16,
+				0,
+				((int *)b->key)[1] * 16
+			};
+			glm_vec3_sub(trans,camera.position,trans);
+			glm_translate_make(view,trans);
+			glm_mat4_mul(inv_crot,view,view);
+			mat4 persp;
+			glm_perspective(camera.fov_radians,(float)width/(float)height,0.01f,1000.0f,persp);
+			mat4 mvp;
+			glm_mat4_mul(persp,view,mvp);
+			glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
+			glBindBuffer(GL_ARRAY_BUFFER,b->value.vbo_id);
+			texture_color_shader_prep_buffer();
+			glDrawArrays(GL_TRIANGLES,0,b->value.vertex_count);
+		}
 
 		glCheckError();
  

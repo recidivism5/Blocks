@@ -6,6 +6,7 @@
 #pragma push_macro("INCLUDED")
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -67,6 +68,46 @@ void *realloc_or_die(void *ptr, size_t size)
 	void *p = realloc(ptr,size);
 	if (!p) fatal_error("realloc failed.");
 	return p;
+}
+#else
+;
+#endif
+
+/*
+rand_int
+From: https://stackoverflow.com/a/822361
+Generates uniform random integers in range [0,n).
+*/
+int rand_int(int n)
+#if INCLUDED == 0
+{
+	if ((n - 1) == RAND_MAX){
+		return rand();
+	} else {
+		// Chop off all of the values that would cause skew...
+		int end = RAND_MAX / n; // truncate skew
+		end *= n;
+		// ... and ignore results from rand() that fall above that limit.
+		// (Worst case the loop condition should succeed 50% of the time,
+		// so we can expect to bail out of this loop pretty quickly.)
+		int r;
+		while ((r = rand()) >= end);
+		return r % n;
+	}
+}
+#else
+;
+#endif
+
+/*
+rand_int_range
+Generates uniform random integers in range [min,max],
+where min >= 0 and max >= min.
+*/
+int rand_int_range(int min, int max)
+#if INCLUDED == 0
+{
+	return rand_int(max-min+1) + min;
 }
 #else
 ;
