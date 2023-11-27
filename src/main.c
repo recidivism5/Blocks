@@ -23,7 +23,7 @@ Camera camera = {
 };
 Texture block_atlas;
 World world;
-int chunk_radius = 4;
+int chunk_radius = 16;
 
 void error_callback(int error, const char* description)
 {
@@ -209,13 +209,13 @@ void main(void)
 				if (b){
 					ChunkFixedKeyLinkedHashListRemove(&world.chunks,b);
 				}
-				Chunk *new_chunk = ChunkFixedKeyLinkedHashListNew(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
-				gen_chunk(new_chunk);
-				mesh_chunk(new_chunk);
+				ChunkFixedKeyLinkedHashListBucket *new_bucket = ChunkFixedKeyLinkedHashListNew(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
+				memset(new_bucket->value.neighbors_exist,0,sizeof(new_bucket->value.neighbors_exist));
+				gen_chunk(&new_bucket->value);
+				mesh_chunk(&world.chunks,new_bucket);
 			}
 			manhattan_spiral_generator_get_next_position(&msg);
 		}
-		printf("chunk_count: %zu\n",world.chunks.used);
 
 		int width,height;
 		glfwGetFramebufferSize(window, &width, &height);

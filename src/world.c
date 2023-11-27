@@ -58,6 +58,7 @@ typedef struct {
 	uint8_t id, r, g, b;
 } Block;
 typedef struct {
+	bool neighbors_exist[4];
 	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
 	GLuint vbo_id;
 	int vertex_count;
@@ -142,9 +143,27 @@ void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int fac
 ;
 #endif
 
-void mesh_chunk(Chunk *c)
+void mesh_chunk(ChunkFixedKeyLinkedHashList *list, ChunkFixedKeyLinkedHashListBucket *b)
 #if INCLUDED == 0
 {
+	Chunk *c = &b->value;
+	int *pos = b->key;
+	ChunkFixedKeyLinkedHashListBucket *neighbor_buckets[4] = {
+		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0]-1,pos[1]}),
+		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0]+1,pos[1]}),
+		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0],pos[1]-1}),
+		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0],pos[1]+1}),
+	};
+	Chunk *neighbors[4];
+	for (int i = 0; i < 4; i++){
+		if (neighbor_buckets[i] && neighbor_buckets[i]->keylen > 0){
+			neighbors[i] = &neighbor_buckets[i]->value;
+			c->neighbors_exist[i] = true;
+		} else {
+			neighbors[i] = 0;
+			c->neighbors_exist[i] = false;
+		}
+	}
 	TextureColorVertexList tvl = {0};
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
@@ -152,10 +171,10 @@ void mesh_chunk(Chunk *c)
 				BlockId id = c->blocks[BLOCK_AT(x,y,z)].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if (x == 0 || !c->blocks[BLOCK_AT(x-1,y,z)].id){
+					if ((x == 0 && neighbors[0] && !neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,y,z)].id) || (x > 0 && !c->blocks[BLOCK_AT(x-1,y,z)].id)){
 						append_block_face(&tvl,x,y,z,0,bt);
 					}
-					if (x == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x+1,y,z)].id){
+					if ((x == (CHUNK_WIDTH-1) && neighbors[1] && !neighbors[1]->blocks[BLOCK_AT(0,y,z)].id) || (x < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x+1,y,z)].id)){
 						append_block_face(&tvl,x,y,z,1,bt);
 					}
 					if (y == 0 || !c->blocks[BLOCK_AT(x,y-1,z)].id){
@@ -164,10 +183,10 @@ void mesh_chunk(Chunk *c)
 					if (y == (CHUNK_HEIGHT-1) || !c->blocks[BLOCK_AT(x,y+1,z)].id){
 						append_block_face(&tvl,x,y,z,3,bt);
 					}
-					if (z == 0 || !c->blocks[BLOCK_AT(x,y,z-1)].id){
+					if ((z == 0 && neighbors[2] && !neighbors[2]->blocks[BLOCK_AT(x,y,CHUNK_WIDTH-1)].id) || (z > 0 && !c->blocks[BLOCK_AT(x,y,z-1)].id)){
 						append_block_face(&tvl,x,y,z,4,bt);
 					}
-					if (z == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x,y,z+1)].id){
+					if ((z == (CHUNK_WIDTH-1) && neighbors[3] && !neighbors[3]->blocks[BLOCK_AT(x,y,0)].id) || (z < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x,y,z+1)].id)){
 						append_block_face(&tvl,x,y,z,5,bt);
 					}
 				}
@@ -183,6 +202,10 @@ void mesh_chunk(Chunk *c)
 	if (tvl.elements){
 		free(tvl.elements);
 	}
+	if (neighbors[0] && !neighbors[0]->neighbors_exist[1]) mesh_chunk(list,neighbor_buckets[0]);
+	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(list,neighbor_buckets[1]);
+	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(list,neighbor_buckets[2]);
+	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(list,neighbor_buckets[3]);
 }
 #else
 ;

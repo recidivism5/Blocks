@@ -113,7 +113,7 @@ type *type##LinkedHashListGet(type##LinkedHashList *list, int keylen, char *key)
 	if (bucket && bucket->keylen > 0) return &bucket->value;\
 	else return 0;\
 }\
-type *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key){\
+type##LinkedHashListBucket *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key){\
 	if (!list->total){\
 		list->total = 8;\
 		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
@@ -159,7 +159,7 @@ type *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key)
 			list->last = bucket;\
 		}\
 	}\
-	return &bucket->value;\
+	return bucket;\
 }\
 void type##LinkedHashListRemove(type##LinkedHashList *list, type##LinkedHashListBucket *bucket){\
 	if (bucket->prev){\
@@ -190,7 +190,7 @@ typedef struct type##LinkedHashList {\
 } type##LinkedHashList;\
 type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, int keylen, char *key);\
 type *type##LinkedHashListGet(type##LinkedHashList *list, int keylen, char *key);\
-type *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key);\
+type##LinkedHashListBucket *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key);\
 void type##LinkedHashListRemove(type##LinkedHashList *list, type##LinkedHashListBucket *bucket);
 
 #define FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(type,fixed_keylen)\
@@ -224,7 +224,7 @@ type *type##FixedKeyLinkedHashListGet(type##FixedKeyLinkedHashList *list, int ke
 	if (bucket && bucket->keylen > 0) return &bucket->value;\
 	else return 0;\
 }\
-type *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key){\
+type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key){\
 	if (!list->total){\
 		list->total = 8;\
 		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
@@ -270,7 +270,7 @@ type *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int ke
 			list->last = bucket;\
 		}\
 	}\
-	return &bucket->value;\
+	return bucket;\
 }\
 void type##FixedKeyLinkedHashListRemove(type##FixedKeyLinkedHashList *list, type##FixedKeyLinkedHashListBucket *bucket){\
 	if (bucket->prev){\
@@ -301,5 +301,5 @@ typedef struct type##FixedKeyLinkedHashList {\
 } type##FixedKeyLinkedHashList;\
 type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListGetBucket(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
 type *type##FixedKeyLinkedHashListGet(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
-type *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
+type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
 void type##FixedKeyLinkedHashListRemove(type##FixedKeyLinkedHashList *list, type##FixedKeyLinkedHashListBucket *bucket);
