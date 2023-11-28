@@ -71,235 +71,126 @@ size_t fnv1a(int keylen, char *key)
 ;
 #endif
 
-#define LINKED_HASHLIST_INIT(list)\
-	(list)->total = 0;\
-	(list)->used = 0;\
-	(list)->buckets = 0;\
-	(list)->first = 0;\
-	(list)->last = 0;
-#define LINKED_HASHLIST_FREE(list)\
-	if ((list)->total){\
-		free((list)->buckets);\
-		LINKED_HASHLIST_INIT(list);\
-	}
-#define LINKED_HASHLIST_IMPLEMENTATION(type)\
-typedef struct type##LinkedHashListBucket {\
-	struct type##LinkedHashListBucket *prev, *next;\
-	int keylen;\
-	char *key;\
-	type value;\
-} type##LinkedHashListBucket;\
-typedef struct type##LinkedHashList {\
-	size_t total, used;\
-	type##LinkedHashListBucket *buckets, *first, *last;\
-} type##LinkedHashList;\
-type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, int keylen, char *key){\
-	if (!list->total) return 0;\
-	size_t index = fnv1a(keylen,key);\
-	index %= list->total;\
-	size_t starting_index = index;\
-	type##LinkedHashListBucket *tombstone = 0;\
-	while (1){\
-		type##LinkedHashListBucket *bucket = list->buckets+index;\
-		if (bucket->keylen < 0 && !tombstone) tombstone = bucket;\
-		else if (!bucket->keylen) return tombstone ? tombstone : bucket;\
-		else if (bucket->keylen == keylen && !memcmp(bucket->key,key,keylen)) return bucket;\
-		index = (index + 1) % list->total;\
-		if (index == starting_index) return tombstone;\
-	}\
-}\
-type *type##LinkedHashListGet(type##LinkedHashList *list, int keylen, char *key){\
-	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
-	if (bucket && bucket->keylen > 0) return &bucket->value;\
-	else return 0;\
-}\
-type##LinkedHashListBucket *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key){\
-	if (!list->total){\
-		list->total = 8;\
-		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
-	}\
-	if (list->used+1 > (list->total*3)/4){\
-		type##LinkedHashList newList;\
-		newList.total = list->total * 2;\
-		newList.used = list->used;\
-		newList.buckets = zalloc_or_die(newList.total*sizeof(*newList.buckets));\
-		for (type##LinkedHashListBucket *bucket = list->first; bucket;){\
-			type##LinkedHashListBucket *newBucket = type##LinkedHashListGetBucket(&newList,bucket->keylen,bucket->key);\
-			newBucket->keylen = bucket->keylen;\
-			newBucket->key = bucket->key;\
-			newBucket->value = bucket->value;\
-			newBucket->next = 0;\
-			if (bucket == list->first){\
-				newBucket->prev = 0;\
-				newList.first = newBucket;\
-				newList.last = newBucket;\
-			} else {\
-				newBucket->prev = newList.last;\
-				newList.last->next = newBucket;\
-				newList.last = newBucket;\
-			}\
-			bucket = bucket->next;\
-		}\
-		free(list->buckets);\
-		*list = newList;\
-	}\
-	type##LinkedHashListBucket *bucket = type##LinkedHashListGetBucket(list,keylen,key);\
-	if (bucket->keylen <= 0){\
-		list->used++;\
-		bucket->keylen = keylen;\
-		bucket->key = key;\
-		bucket->next = 0;\
-		if (list->last){\
-			bucket->prev = list->last;\
-			list->last->next = bucket;\
-			list->last = bucket;\
-		} else {\
-			bucket->prev = 0;\
-			list->first = bucket;\
-			list->last = bucket;\
-		}\
-	}\
-	return bucket;\
-}\
-void type##LinkedHashListRemove(type##LinkedHashList *list, type##LinkedHashListBucket *bucket){\
-	if (bucket->prev){\
-		if (bucket->next){\
-			bucket->prev->next = bucket->next;\
-			bucket->next->prev = bucket->prev;\
-		} else {\
-			bucket->prev->next = 0;\
-			list->last = bucket->prev;\
-		}\
-	} else if (bucket->next){\
-		list->first = bucket->next;\
-		bucket->next->prev = 0;\
-	}\
-	bucket->keylen = -1;\
-	list->used--;\
-}
-#define LINKED_HASHLIST_HEADER(type)\
-typedef struct type##LinkedHashListBucket {\
-	struct type##LinkedHashListBucket *prev, *next;\
-	int keylen;\
-	char *key;\
-	type value;\
-} type##LinkedHashListBucket;\
-typedef struct type##LinkedHashList {\
-	size_t total, used;\
-	type##LinkedHashListBucket *buckets, *first, *last;\
-} type##LinkedHashList;\
-type##LinkedHashListBucket *type##LinkedHashListGetBucket(type##LinkedHashList *list, int keylen, char *key);\
-type *type##LinkedHashListGet(type##LinkedHashList *list, int keylen, char *key);\
-type##LinkedHashListBucket *type##LinkedHashListNew(type##LinkedHashList *list, int keylen, char *key);\
-void type##LinkedHashListRemove(type##LinkedHashList *list, type##LinkedHashListBucket *bucket);
+typedef struct LinkedHashListBucket {
+	struct LinkedHashListBucket *prev, *next, *prev_in_chain, *next_in_chain;
+	int keylen;
+	char *key;
+	void *value;
+} LinkedHashListBucket;
 
-#define FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(type,fixed_keylen)\
-typedef struct type##FixedKeyLinkedHashListBucket {\
-	struct type##FixedKeyLinkedHashListBucket *prev, *next;\
-	int keylen;\
-	char key[fixed_keylen];\
-	type value;\
-} type##FixedKeyLinkedHashListBucket;\
-typedef struct type##FixedKeyLinkedHashList {\
-	size_t total, used;\
-	type##FixedKeyLinkedHashListBucket *buckets, *first, *last;\
-} type##FixedKeyLinkedHashList;\
-type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListGetBucket(type##FixedKeyLinkedHashList *list, int keylen, char *key){\
-	if (!list->total) return 0;\
-	size_t index = fnv1a(keylen,key);\
-	index %= list->total;\
-	size_t starting_index = index;\
-	type##FixedKeyLinkedHashListBucket *tombstone = 0;\
-	while (1){\
-		type##FixedKeyLinkedHashListBucket *bucket = list->buckets+index;\
-		if (bucket->keylen < 0 && !tombstone) tombstone = bucket;\
-		else if (!bucket->keylen) return tombstone ? tombstone : bucket;\
-		else if (bucket->keylen == keylen && !memcmp(bucket->key,key,keylen)) return bucket;\
-		index = (index + 1) % list->total;\
-		if (index == starting_index) return tombstone;\
-	}\
-}\
-type *type##FixedKeyLinkedHashListGet(type##FixedKeyLinkedHashList *list, int keylen, char *key){\
-	type##FixedKeyLinkedHashListBucket *bucket = type##FixedKeyLinkedHashListGetBucket(list,keylen,key);\
-	if (bucket && bucket->keylen > 0) return &bucket->value;\
-	else return 0;\
-}\
-type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key){\
-	if (!list->total){\
-		list->total = 8;\
-		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));\
-	}\
-	if (list->used+1 > (list->total*3)/4){\
-		type##FixedKeyLinkedHashList newList;\
-		newList.total = list->total * 2;\
-		newList.used = list->used;\
-		newList.buckets = zalloc_or_die(newList.total*sizeof(*newList.buckets));\
-		for (type##FixedKeyLinkedHashListBucket *bucket = list->first; bucket;){\
-			type##FixedKeyLinkedHashListBucket *newBucket = type##FixedKeyLinkedHashListGetBucket(&newList,bucket->keylen,bucket->key);\
-			newBucket->keylen = bucket->keylen;\
-			memcpy(newBucket->key,bucket->key,bucket->keylen);\
-			newBucket->value = bucket->value;\
-			newBucket->next = 0;\
-			if (bucket == list->first){\
-				newBucket->prev = 0;\
-				newList.first = newBucket;\
-				newList.last = newBucket;\
-			} else {\
-				newBucket->prev = newList.last;\
-				newList.last->next = newBucket;\
-				newList.last = newBucket;\
-			}\
-			bucket = bucket->next;\
-		}\
-		free(list->buckets);\
-		*list = newList;\
-	}\
-	type##FixedKeyLinkedHashListBucket *bucket = type##FixedKeyLinkedHashListGetBucket(list,keylen,key);\
-	if (bucket->keylen <= 0){\
-		list->used++;\
-		bucket->keylen = keylen;\
-		memcpy(bucket->key,key,keylen);\
-		bucket->next = 0;\
-		if (list->last){\
-			bucket->prev = list->last;\
-			list->last->next = bucket;\
-			list->last = bucket;\
-		} else {\
-			bucket->prev = 0;\
-			list->first = bucket;\
-			list->last = bucket;\
-		}\
-	}\
-	return bucket;\
-}\
-void type##FixedKeyLinkedHashListRemove(type##FixedKeyLinkedHashList *list, type##FixedKeyLinkedHashListBucket *bucket){\
-	if (bucket->prev){\
-		if (bucket->next){\
-			bucket->prev->next = bucket->next;\
-			bucket->next->prev = bucket->prev;\
-		} else {\
-			bucket->prev->next = 0;\
-			list->last = bucket->prev;\
-		}\
-	} else if (bucket->next){\
-		list->first = bucket->next;\
-		bucket->next->prev = 0;\
-	}\
-	bucket->keylen = -1;\
-	list->used--;\
+typedef struct LinkedHashList {
+	size_t total, used;
+	LinkedHashListBucket *buckets, *first, *last;
+} LinkedHashList;
+
+void LinkedHashListFree(LinkedHashList *list)
+#if INCLUDED == 0
+{
+	for (LinkedHashListBucket *b = list->first; b; b = b->next){
+		LinkedHashListBucket *nb = b->next_in_chain;
+		while (nb){
+			LinkedHashListBucket *xb = nb->next_in_chain;
+			free(nb);
+			nb = xb;
+		}
+	}
+	free(list->buckets);
+	memset(list,0,sizeof(list));
 }
-#define FIXED_KEY_LINKED_HASHLIST_HEADER(type,fixed_keylen)\
-typedef struct type##FixedKeyLinkedHashListBucket {\
-	struct type##FixedKeyLinkedHashListBucket *prev, *next;\
-	int keylen;\
-	char key[fixed_keylen];\
-	type value;\
-} type##FixedKeyLinkedHashListBucket;\
-typedef struct type##FixedKeyLinkedHashList {\
-	size_t total, used;\
-	type##FixedKeyLinkedHashListBucket *buckets, *first, *last;\
-} type##FixedKeyLinkedHashList;\
-type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListGetBucket(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
-type *type##FixedKeyLinkedHashListGet(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
-type##FixedKeyLinkedHashListBucket *type##FixedKeyLinkedHashListNew(type##FixedKeyLinkedHashList *list, int keylen, char *key);\
-void type##FixedKeyLinkedHashListRemove(type##FixedKeyLinkedHashList *list, type##FixedKeyLinkedHashListBucket *bucket);
+#else
+;
+#endif
+
+LinkedHashListBucket *LinkedHashListGet(LinkedHashList *list, int keylen, char *key, bool make_new)
+#if INCLUDED == 0
+{
+	if (!list->total){
+		return 0;
+	}
+	LinkedHashListBucket *b = list->buckets + (fnv1a(keylen,key) % list->total);
+	if (!b->keylen){
+		if (make_new) goto MAKE;
+		return 0;
+	}
+	while (1){
+		if (b->keylen == keylen && !memcmp(b->key,key,keylen)){
+			return b;
+		}
+		if (b->next_in_chain){
+			b = b->next_in_chain;
+		} else if (make_new){
+			b->next_in_chain = malloc_or_die(sizeof(*b->next_in_chain));
+			b->prev_in_chain = b;//this is not volatile
+			b = b->next_in_chain;
+			goto MAKE;
+		} else {
+			return 0;
+		}
+	}
+MAKE:
+	b->keylen = keylen;
+	b->key = key;
+	if (!list->first){
+		list->first = b;
+		list->last = b;
+		b->prev = 0;
+	} else {
+		list->last->next = b;
+		b->prev = list->last;
+		list->last = b;
+	}
+	b->next = 0;
+	b->next_in_chain = 0;
+	b->value = 0;
+	return b;
+}
+#else
+;
+#endif
+
+LinkedHashListBucket *LinkedHashListNew(LinkedHashList *list, int keylen, char *key)
+#if INCLUDED == 0
+{
+	if (!list->total){
+		list->total = 8;
+		list->buckets = zalloc_or_die(8*sizeof(*list->buckets));
+	}
+	if (list->used+1 > (list->total*3)/4){
+		LinkedHashList newList;
+		newList.total = list->total * 2;
+		newList.used = list->used;
+		newList.buckets = zalloc_or_die(newList.total*sizeof(*newList.buckets));
+		for (LinkedHashListBucket *b = list->first; b; b = b->next){
+			LinkedHashListBucket *nb = LinkedHashListGet(&newList,b->keylen,b->key,true);
+			nb->value = b->value;
+		}
+		LinkedHashListFree(list);
+		*list = newList;
+	}
+	list->used++;
+	return LinkedHashListGet(list,keylen,key,true);
+}
+#else
+;
+#endif
+
+void LinkedHashListRemove(LinkedHashList *list, LinkedHashListBucket *b)
+#if INCLUDED == 0
+{
+	if (b->prev_in_chain){
+		b->prev_in_chain->next_in_chain = b->next_in_chain;
+	}
+	if (b->prev){
+		b->prev->next = b->next;
+		if (b->next) b->next->prev = b->prev;
+		else list->last = b->prev;
+	} else if (b->next){
+		list->first = b->next;
+		b->next->prev = 0;
+	}
+	b->keylen = 0;
+	list->used--;
+}
+#else
+;
+#endif

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 #include <boxer/boxer.h>
 
 #pragma pop_macro("INCLUDED")
