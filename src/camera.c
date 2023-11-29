@@ -1,3 +1,7 @@
+#pragma once
+#if defined __INTELLISENSE__
+#undef INCLUDED
+#endif
 #ifdef INCLUDED
 #define INCLUDED 1
 #else

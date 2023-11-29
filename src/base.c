@@ -1,3 +1,7 @@
+#pragma once
+#if defined __INTELLISENSE__
+#undef INCLUDED
+#endif
 #ifdef INCLUDED
 #define INCLUDED 1
 #else
@@ -112,4 +116,22 @@ int rand_int_range(int min, int max)
 }
 #else
 ;
+#endif
+
+/*
+fnv_1a
+Fowler–Noll–Vo hash function. https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+*/
+uint32_t fnv_1a(int keylen, char *key)
+#if INCLUDED == 0
+{
+	uint32_t index = 2166136261u;
+	for (uint32_t i = 0; i < keylen; i++){
+		index ^= key[i];
+		index *= 16777619;
+	}
+	return index;
+}
+#else
+	;
 #endif

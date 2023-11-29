@@ -1,3 +1,7 @@
+#pragma once
+#if defined __INTELLISENSE__
+#undef INCLUDED
+#endif
 #ifdef INCLUDED
 #define INCLUDED 1
 #else
@@ -17,7 +21,7 @@
 #pragma pop_macro("INCLUDED")
 
 Camera camera = {
-	.position = {17,34,17},
+	.position = {8,34,8},
 	.euler = {0,0,0},
 	.fov_radians = 0.5f*M_PI
 };
@@ -198,21 +202,21 @@ void main(void)
 		ManhattanSpiralGenerator msg;
 		manhattan_spiral_generator_init(&msg,chunk_pos);
 		while (msg.radius <= chunk_radius){
-			Chunk *c = ChunkFixedKeyLinkedHashListGet(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
-			if (!c){
-				//find out of range chunk, replace with new chunk
-				//if none found, add new chunk to hashlist
-				ChunkFixedKeyLinkedHashListBucket *b = world.chunks.first;
-				while (b && manhattan_distance_2d(b->key,chunk_pos) <= chunk_radius){
-					b = b->next;
+			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGet(&world.chunks,msg.cur_pos);
+			if (!b || b->chunk == 0 || b->chunk == TOMBSTONE){
+				b = ChunkLinkedHashListNew(&world.chunks,msg.cur_pos);
+				ChunkLinkedHashListBucket *oldb = world.chunks.first;
+				while (oldb && manhattan_distance_2d(oldb->position,chunk_pos) <= chunk_radius){
+					oldb = oldb->next;
 				}
-				if (b){
-					ChunkFixedKeyLinkedHashListRemove(&world.chunks,b);
+				if (oldb){
+					b->chunk = oldb->chunk;
+					ChunkLinkedHashListRemove(&world.chunks,oldb);
+				} else {
+					b->chunk = zalloc_or_die(sizeof(Chunk));
 				}
-				ChunkFixedKeyLinkedHashListBucket *new_bucket = ChunkFixedKeyLinkedHashListNew(&world.chunks,sizeof(msg.cur_pos),msg.cur_pos);
-				memset(new_bucket->value.neighbors_exist,0,sizeof(new_bucket->value.neighbors_exist));
-				gen_chunk(&new_bucket->value);
-				mesh_chunk(&world.chunks,new_bucket);
+				gen_chunk(b->chunk);
+				mesh_chunk(&world.chunks,b);
 			}
 			manhattan_spiral_generator_get_next_position(&msg);
 		}
@@ -233,14 +237,14 @@ void main(void)
 		glUniform1i(texture_color_shader.uTex,0);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D,block_atlas.id);
-		for (ChunkFixedKeyLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
+		for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
 			mat4 inv_crot;
 			glm_mat4_transpose_to(crot,inv_crot);
 			mat4 view;
 			vec3 trans = {
-				((int *)b->key)[0] * 16,
+				b->position[0] * 16,
 				0,
-				((int *)b->key)[1] * 16
+				b->position[1] * 16
 			};
 			glm_vec3_sub(trans,camera.position,trans);
 			glm_translate_make(view,trans);
@@ -250,9 +254,9 @@ void main(void)
 			mat4 mvp;
 			glm_mat4_mul(persp,view,mvp);
 			glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-			glBindBuffer(GL_ARRAY_BUFFER,b->value.vbo_id);
+			glBindBuffer(GL_ARRAY_BUFFER,b->chunk->vbo_id);
 			texture_color_shader_prep_buffer();
-			glDrawArrays(GL_TRIANGLES,0,b->value.vertex_count);
+			glDrawArrays(GL_TRIANGLES,0,b->chunk->vertex_count);
 		}
 
 		glCheckError();

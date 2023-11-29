@@ -1,3 +1,7 @@
+#pragma once
+#if defined __INTELLISENSE__
+#undef INCLUDED
+#endif
 #ifdef INCLUDED
 #define INCLUDED 1
 #else
@@ -11,7 +15,7 @@
 #include <zlib.h>
 #include <png.h>
 
-#include "data_structures.c"
+#include "base.c"
 
 #pragma pop_macro("INCLUDED")
 
@@ -132,10 +136,24 @@ typedef struct {
 	float x,y,z, u,v;
 	uint32_t color;
 } TextureColorVertex;
+
+typedef struct {
+	size_t total, used;
+	TextureColorVertex *elements;
+} TextureColorVertexList;
+
+TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, size_t count)
 #if INCLUDED == 0
-LIST_IMPLEMENTATION(TextureColorVertex)
+{
+	if (list->used+count > list->total){
+		if (!list->total) list->total = 1;
+		while (list->used+count > list->total) list->total *= 2;
+		list->elements = realloc_or_die(list->elements,list->total*sizeof(*list->elements));
+	}
+	return list->elements+list->used;
+}
 #else
-LIST_HEADER(TextureColorVertex)
+;
 #endif
 
 struct {

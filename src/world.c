@@ -1,3 +1,7 @@
+#pragma once
+#if defined __INTELLISENSE__
+#undef INCLUDED
+#endif
 #ifdef INCLUDED
 #define INCLUDED 1
 #else
@@ -63,10 +67,99 @@ typedef struct {
 	GLuint vbo_id;
 	int vertex_count;
 } Chunk;
+
+typedef struct ChunkLinkedHashListBucket {
+	struct ChunkLinkedHashListBucket *prev, *next;
+	ivec2 position;
+	Chunk *chunk;
+} ChunkLinkedHashListBucket;
+
+typedef struct {
+	size_t total, used, tombstones;
+	ChunkLinkedHashListBucket *buckets, *first, *last;
+} ChunkLinkedHashList;
+
+#define TOMBSTONE UINTPTR_MAX
+
+ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position)
 #if INCLUDED == 0
-FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(Chunk,sizeof(ivec2))
+{
+	if (!list->total) return 0;
+	size_t index = fnv_1a(sizeof(position),position) % list->total;
+	ChunkLinkedHashListBucket *tombstone = 0;
+	while (1){
+		ChunkLinkedHashListBucket *b = list->buckets+index;
+		if (b->chunk == TOMBSTONE) tombstone = b;
+		else if (b->chunk == 0) return tombstone ? tombstone : b;
+		else if (!memcmp(b->position,position,sizeof(position))) return b;
+		index = (index + 1) % list->total;
+	}
+}
 #else
-FIXED_KEY_LINKED_HASHLIST_HEADER(Chunk,sizeof(ivec2))
+;
+#endif
+
+void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
+#if INCLUDED == 0
+{
+	b->chunk = TOMBSTONE;
+	if (b->prev) b->prev->next = b->next;
+	if (b->next) b->next->prev = b->prev;
+	if (list->first == b) list->first = b->next;
+	if (list->last == b) list->last = b->prev;
+	list->used--;
+	list->tombstones++;
+}
+#else
+;
+#endif
+
+ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ivec2 position)
+#if INCLUDED == 0
+{
+	if ((list->used+list->tombstones+1) > (list->total*3)/4){
+		ChunkLinkedHashList newList;
+		newList.total = 8;
+		while (newList.total < (list->used*2)) newList.total *= 2; //make a new list with at least twice as many elements as list->used.
+		newList.used = list->used;
+		newList.tombstones = 0;
+		newList.first = 0;
+		newList.last = 0;
+		newList.buckets = zalloc_or_die(newList.total*sizeof(*newList.buckets));
+		for (ChunkLinkedHashListBucket *b = list->first; b; b = b->next){
+			ChunkLinkedHashListBucket *nb = ChunkLinkedHashListGet(&newList,b->position);
+			memcpy(nb->position,b->position,sizeof(b->position));
+			nb->chunk = b->chunk;
+			if (!newList.first){
+				newList.first = nb;
+				nb->prev = 0;
+			} else {
+				newList.last->next = nb;
+				nb->prev = newList.last;
+			}
+			newList.last = nb;
+			nb->next = 0;
+		}
+		if (list->buckets) free(list->buckets);
+		*list = newList;
+	}
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGet(list,position);
+	memcpy(b->position,position,sizeof(position));
+	if (!list->first){
+		list->first = b;
+		b->prev = 0;
+	} else {
+		list->last->next = b;
+		b->prev = list->last;
+	}
+	list->last = b;
+	b->next = 0;
+	if (b->chunk == TOMBSTONE) list->tombstones--;
+	list->used++;
+	return b;
+}
+#else
+;
 #endif
 
 #define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
@@ -143,27 +236,10 @@ void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int fac
 ;
 #endif
 
-void mesh_chunk(ChunkFixedKeyLinkedHashList *list, ChunkFixedKeyLinkedHashListBucket *b)
+void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
 #if INCLUDED == 0
 {
-	Chunk *c = &b->value;
-	int *pos = b->key;
-	ChunkFixedKeyLinkedHashListBucket *neighbor_buckets[4] = {
-		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0]-1,pos[1]}),
-		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0]+1,pos[1]}),
-		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0],pos[1]-1}),
-		ChunkFixedKeyLinkedHashListGetBucket(list,sizeof(ivec2),(ivec2){pos[0],pos[1]+1}),
-	};
-	Chunk *neighbors[4];
-	for (int i = 0; i < 4; i++){
-		if (neighbor_buckets[i] && neighbor_buckets[i]->keylen > 0){
-			neighbors[i] = &neighbor_buckets[i]->value;
-			c->neighbors_exist[i] = true;
-		} else {
-			neighbors[i] = 0;
-			c->neighbors_exist[i] = false;
-		}
-	}
+	Chunk *c = b->chunk;
 	TextureColorVertexList tvl = {0};
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
@@ -171,10 +247,10 @@ void mesh_chunk(ChunkFixedKeyLinkedHashList *list, ChunkFixedKeyLinkedHashListBu
 				BlockId id = c->blocks[BLOCK_AT(x,y,z)].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if ((x == 0 && neighbors[0] && !neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,y,z)].id) || (x > 0 && !c->blocks[BLOCK_AT(x-1,y,z)].id)){
+					if (x == 0 || !c->blocks[BLOCK_AT(x-1,y,z)].id){
 						append_block_face(&tvl,x,y,z,0,bt);
 					}
-					if ((x == (CHUNK_WIDTH-1) && neighbors[1] && !neighbors[1]->blocks[BLOCK_AT(0,y,z)].id) || (x < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x+1,y,z)].id)){
+					if (x == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x+1,y,z)].id){
 						append_block_face(&tvl,x,y,z,1,bt);
 					}
 					if (y == 0 || !c->blocks[BLOCK_AT(x,y-1,z)].id){
@@ -183,29 +259,25 @@ void mesh_chunk(ChunkFixedKeyLinkedHashList *list, ChunkFixedKeyLinkedHashListBu
 					if (y == (CHUNK_HEIGHT-1) || !c->blocks[BLOCK_AT(x,y+1,z)].id){
 						append_block_face(&tvl,x,y,z,3,bt);
 					}
-					if ((z == 0 && neighbors[2] && !neighbors[2]->blocks[BLOCK_AT(x,y,CHUNK_WIDTH-1)].id) || (z > 0 && !c->blocks[BLOCK_AT(x,y,z-1)].id)){
+					if (z == 0 || !c->blocks[BLOCK_AT(x,y,z-1)].id){
 						append_block_face(&tvl,x,y,z,4,bt);
 					}
-					if ((z == (CHUNK_WIDTH-1) && neighbors[3] && !neighbors[3]->blocks[BLOCK_AT(x,y,0)].id) || (z < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x,y,z+1)].id)){
+					if (z == (CHUNK_WIDTH-1) || !c->blocks[BLOCK_AT(x,y,z+1)].id){
 						append_block_face(&tvl,x,y,z,5,bt);
 					}
 				}
 			}
 		}
 	}
-	if (!c->vbo_id){
-		glGenBuffers(1,&c->vbo_id);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
-	glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
-	c->vertex_count = tvl.used;
 	if (tvl.elements){
+		if (!c->vbo_id){
+			glGenBuffers(1,&c->vbo_id);
+		}
+		glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
+		glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
+		c->vertex_count = tvl.used;
 		free(tvl.elements);
 	}
-	if (neighbors[0] && !neighbors[0]->neighbors_exist[1]) mesh_chunk(list,neighbor_buckets[0]);
-	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(list,neighbor_buckets[1]);
-	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(list,neighbor_buckets[2]);
-	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(list,neighbor_buckets[3]);
 }
 #else
 ;
@@ -220,13 +292,7 @@ typedef struct {
 	int sector_count;
 	bool *sector_usage;
 } Region;
-#if INCLUDED == 0
-FIXED_KEY_LINKED_HASHLIST_IMPLEMENTATION(Region,sizeof(ivec2))
-#else
-FIXED_KEY_LINKED_HASHLIST_HEADER(Region,sizeof(ivec2))
-#endif
 
 typedef struct {
-	RegionFixedKeyLinkedHashList regions;
-	ChunkFixedKeyLinkedHashList chunks;
+	ChunkLinkedHashList chunks;
 } World;
