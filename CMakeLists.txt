@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project (Blocks C CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinydir)
 
@@ -28,7 +29,6 @@ add_subdirectory(third_party/cglm)
 set(BLOCKS-SRC
 	src/base.c
 	src/camera.c
-	src/data_structures.c
 	src/main.c
 	src/renderer.c
 	src/world.c

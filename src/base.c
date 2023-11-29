@@ -126,7 +126,7 @@ uint32_t fnv_1a(int keylen, char *key)
 #if INCLUDED == 0
 {
 	uint32_t index = 2166136261u;
-	for (uint32_t i = 0; i < keylen; i++){
+	for (int i = 0; i < keylen; i++){
 		index ^= key[i];
 		index *= 16777619;
 	}
