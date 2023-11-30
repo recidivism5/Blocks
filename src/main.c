@@ -2,11 +2,7 @@
 
 Player player;
 
-Camera camera = {
-	.position = {8,80,8},
-	.euler = {0,0,0},
-	.fov_radians = 0.5f*M_PI
-};
+bool freecam = false;
 Texture block_atlas;
 World world;
 int chunk_radius = 16;
@@ -16,7 +12,14 @@ void error_callback(int error, const char* description)
 	fprintf(stderr, "Error: %s\n", description);
 }
 
-bool move_left,move_right,move_backward,move_forward;
+struct {
+	bool
+		left,
+		right,
+		backward,
+		forward,
+		jump;
+} keys;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
 	switch (action){
 		case GLFW_PRESS:{
@@ -25,19 +28,21 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 					glfwSetWindowShouldClose(window, GLFW_TRUE);
 					break;
 				}
-				case GLFW_KEY_A: move_left = true; break;
-				case GLFW_KEY_D: move_right = true; break;
-				case GLFW_KEY_S: move_backward = true; break;
-				case GLFW_KEY_W: move_forward = true; break;
+				case GLFW_KEY_A: keys.left = true; break;
+				case GLFW_KEY_D: keys.right = true; break;
+				case GLFW_KEY_S: keys.backward = true; break;
+				case GLFW_KEY_W: keys.forward = true; break;
+				case GLFW_KEY_SPACE: keys.jump = true; break;
 			}
 			break;
 		}
 		case GLFW_RELEASE:{
 			switch (key){
-				case GLFW_KEY_A: move_left = false; break;
-				case GLFW_KEY_D: move_right = false; break;
-				case GLFW_KEY_S: move_backward = false; break;
-				case GLFW_KEY_W: move_forward = false; break;
+				case GLFW_KEY_A: keys.left = false; break;
+				case GLFW_KEY_D: keys.right = false; break;
+				case GLFW_KEY_S: keys.backward = false; break;
+				case GLFW_KEY_W: keys.forward = false; break;
+				case GLFW_KEY_SPACE: keys.jump = false; break;
 			}
 			break;
 		}
@@ -50,13 +55,13 @@ void clamp_euler(vec3 e){
 		else if (e[i] < -fp) e[i] += fp;
 	}
 }
-void rotate_camera(Camera *c, float dx, float dy, float sens){
-	c->euler[1] += sens * dx;
-	c->euler[0] += sens * dy;
-	clamp_euler(c->euler);
+void rotate_euler(vec3 e, float dx, float dy, float sens){
+	e[1] += sens * dx;
+	e[0] += sens * dy;
+	clamp_euler(e);
 }
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos){
-	rotate_camera(&camera,xpos,ypos,-0.001f);
+	rotate_euler(player.head_euler,xpos,ypos,-0.001f);
 	glfwSetCursorPos(window, 0, 0);
 }
 
@@ -169,45 +174,60 @@ void main(void)
 		double dt = t1 - t0;
 		t0 = t1;
 
-		//move camera based on cam_dir
 		mat4 crot;
-		glm_euler_zyx(camera.euler,crot);
+		glm_euler_zyx(player.head_euler,crot);
 		vec3 c_right,c_backward;
 		glm_vec3(crot[0],c_right);
 		glm_vec3(crot[2],c_backward);
 		ivec2 move_dir;
-		if (move_left && move_right){
+		if (keys.left && keys.right){
 			move_dir[0] = 0;
-		} else if (move_left){
+		} else if (keys.left){
 			move_dir[0] = -1;
-		} else if (move_right){
+		} else if (keys.right){
 			move_dir[0] = 1;
 		} else {
 			move_dir[0] = 0;
 		}
-		if (move_backward && move_forward){
+		if (keys.backward && keys.forward){
 			move_dir[1] = 0;
-		} else if (move_backward){
+		} else if (keys.backward){
 			move_dir[1] = 1;
-		} else if (move_forward){
+		} else if (keys.forward){
 			move_dir[1] = -1;
 		} else {
 			move_dir[1] = 0;
 		}
-		if (move_dir[0] || move_dir[1]){
+		if (freecam && (move_dir[0] || move_dir[1])){
 			glm_vec3_scale(c_right,move_dir[0],c_right);
 			glm_vec3_scale(c_backward,move_dir[1],c_backward);
 			vec3 move_vec;
 			glm_vec3_add(c_right,c_backward,move_vec);
 			glm_vec3_normalize(move_vec);
 			glm_vec3_scale(move_vec,20.0f*dt,move_vec);
-			glm_vec3_add(camera.position,move_vec,camera.position);
+			glm_vec3_add(player.aabb.position,move_vec,player.aabb.position);
+		} else {
+			vec3 move_vec = {move_dir[0],0,move_dir[1]};
+			if (move_dir[0] || move_dir[1]){
+				glm_vec3_normalize(move_vec);
+				glm_vec3_scale(move_vec,10.0f,move_vec);
+				glm_vec3_rotate(move_vec,player.head_euler[1],GLM_YUP);
+			}
+			player.aabb.velocity[0] = glm_lerp(player.aabb.velocity[0],move_vec[0],10.0f*dt);
+			player.aabb.velocity[2] = glm_lerp(player.aabb.velocity[2],move_vec[2],10.0f*dt);
 		}
+		if (player.aabb.on_ground && keys.jump){
+			player.aabb.velocity[1] = 6.0f;
+		}
+		player.aabb.velocity[1] -= 9.8f * dt;
+		move_aabb(&world,&player.aabb,dt);
 
 		ivec2 chunk_pos;
-		world_pos_to_chunk_pos(camera.position,chunk_pos);
+		world_pos_to_chunk_pos(player.aabb.position,chunk_pos);
 		ManhattanSpiralGenerator msg;
 		manhattan_spiral_generator_init(&msg,chunk_pos);
+		int new_chunks = 0;
+		int max_new_chunks_per_frame = 1;
 		while (msg.radius <= chunk_radius){
 			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&world.chunks,msg.cur_pos);
 			if (!b){
@@ -224,6 +244,8 @@ void main(void)
 				}
 				gen_chunk(b->chunk);
 				mesh_chunk(&world.chunks,b);
+				new_chunks++;
+				if (new_chunks >= max_new_chunks_per_frame) break;
 			}
 			manhattan_spiral_generator_get_next_position(&msg);
 		}
@@ -253,11 +275,13 @@ void main(void)
 				0,
 				b->position[1] * CHUNK_WIDTH
 			};
-			glm_vec3_sub(trans,camera.position,trans);
+			vec3 player_head;
+			get_player_head_position(&player,player_head);
+			glm_vec3_sub(trans,player_head,trans);
 			glm_translate_make(view,trans);
 			glm_mat4_mul(inv_crot,view,view);
 			mat4 persp;
-			glm_perspective(camera.fov_radians,(float)width/(float)height,0.01f,1000.0f,persp);
+			glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
 			mat4 mvp;
 			glm_mat4_mul(persp,view,mvp);
 			glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);

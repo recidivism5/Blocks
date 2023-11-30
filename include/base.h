@@ -19,7 +19,6 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define CLAMP(a,min,max) ((a) < (min) ? (min) : (a) > (max) ? (max) : (a))
 #define SWAP(temp,a,b) (temp)=(a); (a)=(b); (b)=(temp)
-#define LERP(a,b,t) ((a) + (t)*((b)-(a)))
 
 void fatal_error(char *format, ...);
 

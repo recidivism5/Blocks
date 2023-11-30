@@ -6,6 +6,7 @@ typedef struct {
 	vec3 half_extents;
 	vec3 position;
 	vec3 velocity;
+	bool on_ground;
 } AABB;
 
 typedef struct {
@@ -33,4 +34,6 @@ typedef struct {
 
 void init_player(Player *p, vec3 position, vec3 head_euler);
 
-void update_player(World *w, Player *p, double dt);
+void move_aabb(World *w, AABB *a, double dt);
+
+void get_player_head_position(Player *p, vec3 pos);

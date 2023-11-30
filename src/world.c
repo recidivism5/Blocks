@@ -192,6 +192,9 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 }
 
 Block *get_block(World *w, int x, int y, int z){
+	if (y < 0 || y > (CHUNK_HEIGHT-1)){
+		return 0;
+	}
 	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(x+(x<0))/CHUNK_WIDTH-(x<0),(z+(z<0))/CHUNK_WIDTH-(z<0)});
 	if (b){
 		return b->chunk->blocks + BLOCK_AT(modulo(x,CHUNK_WIDTH),y,modulo(z,CHUNK_WIDTH));
