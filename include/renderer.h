@@ -56,9 +56,3 @@ void compile_texture_color_shader();
 void texture_color_shader_prep_buffer();
 
 void compile_shaders();
-
-typedef struct {
-	vec3 position;
-	vec3 euler;
-	float fov_radians;
-} Camera;

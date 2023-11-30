@@ -2,7 +2,13 @@
 
 Player player;
 
-bool freecam = false;
+enum MoveState {
+	MOVE_STATE_NORMAL,
+	MOVE_STATE_FLY,
+	MOVE_STATE_NOCLIP,
+	MOVE_STATE_COUNT
+} move_state = MOVE_STATE_NORMAL;
+
 Texture block_atlas;
 World world;
 int chunk_radius = 16;
@@ -18,7 +24,8 @@ struct {
 		right,
 		backward,
 		forward,
-		jump;
+		jump,
+		crouch;
 } keys;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
 	switch (action){
@@ -33,6 +40,15 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 				case GLFW_KEY_S: keys.backward = true; break;
 				case GLFW_KEY_W: keys.forward = true; break;
 				case GLFW_KEY_SPACE: keys.jump = true; break;
+				case GLFW_KEY_LEFT_CONTROL: keys.crouch = true; break;
+				case GLFW_KEY_F:{
+					if (move_state == MOVE_STATE_NORMAL){
+						move_state = MOVE_STATE_FLY;
+					} else {
+						move_state = MOVE_STATE_NORMAL;
+					}
+					break;
+				}
 			}
 			break;
 		}
@@ -43,6 +59,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 				case GLFW_KEY_S: keys.backward = false; break;
 				case GLFW_KEY_W: keys.forward = false; break;
 				case GLFW_KEY_SPACE: keys.jump = false; break;
+				case GLFW_KEY_LEFT_CONTROL: keys.crouch = false; break;
 			}
 			break;
 		}
@@ -198,29 +215,45 @@ void main(void)
 		} else {
 			move_dir[1] = 0;
 		}
-		if (freecam && (move_dir[0] || move_dir[1])){
-			glm_vec3_scale(c_right,move_dir[0],c_right);
-			glm_vec3_scale(c_backward,move_dir[1],c_backward);
-			vec3 move_vec;
-			glm_vec3_add(c_right,c_backward,move_vec);
-			glm_vec3_normalize(move_vec);
-			glm_vec3_scale(move_vec,20.0f*dt,move_vec);
-			glm_vec3_add(player.aabb.position,move_vec,player.aabb.position);
-		} else {
-			vec3 move_vec = {move_dir[0],0,move_dir[1]};
-			if (move_dir[0] || move_dir[1]){
+		switch (move_state){
+			case MOVE_STATE_NOCLIP:{
+				glm_vec3_scale(c_right,move_dir[0],c_right);
+				glm_vec3_scale(c_backward,move_dir[1],c_backward);
+				vec3 move_vec;
+				glm_vec3_add(c_right,c_backward,move_vec);
 				glm_vec3_normalize(move_vec);
-				glm_vec3_scale(move_vec,10.0f,move_vec);
-				glm_vec3_rotate(move_vec,player.head_euler[1],GLM_YUP);
+				glm_vec3_scale(move_vec,20.0f*dt,move_vec);
+				glm_vec3_add(player.aabb.position,move_vec,player.aabb.position);
+				break;
 			}
-			player.aabb.velocity[0] = glm_lerp(player.aabb.velocity[0],move_vec[0],10.0f*dt);
-			player.aabb.velocity[2] = glm_lerp(player.aabb.velocity[2],move_vec[2],10.0f*dt);
+			case MOVE_STATE_NORMAL:{
+				vec3 move_vec = {move_dir[0],0,move_dir[1]};
+				if (move_dir[0] || move_dir[1]){
+					glm_vec3_normalize(move_vec);
+					glm_vec3_scale(move_vec,8.0f,move_vec);
+					glm_vec3_rotate(move_vec,player.head_euler[1],GLM_YUP);
+				}
+				player.aabb.velocity[0] = glm_lerp(player.aabb.velocity[0],move_vec[0],8.0f*dt);
+				player.aabb.velocity[2] = glm_lerp(player.aabb.velocity[2],move_vec[2],8.0f*dt);
+				if (player.aabb.on_ground && keys.jump){
+					player.aabb.velocity[1] = 10.0f;
+				}
+				player.aabb.velocity[1] -= 32.0f * dt;
+				move_aabb(&world,&player.aabb,dt);
+				break;
+			}
+			case MOVE_STATE_FLY:{
+				vec3 move_vec = {move_dir[0],keys.crouch ? -1 : keys.jump ? 1 : 0,move_dir[1]};
+				if (move_dir[0] || move_dir[1] || keys.crouch || keys.jump){
+					glm_vec3_normalize(move_vec);
+					glm_vec3_scale(move_vec,16.0f,move_vec);
+					glm_vec3_rotate(move_vec,player.head_euler[1],GLM_YUP);
+				}
+				glm_vec3_lerp(player.aabb.velocity,move_vec,8.0f*dt,player.aabb.velocity);
+				move_aabb(&world,&player.aabb,dt);
+				break;
+			}
 		}
-		if (player.aabb.on_ground && keys.jump){
-			player.aabb.velocity[1] = 6.0f;
-		}
-		player.aabb.velocity[1] -= 9.8f * dt;
-		move_aabb(&world,&player.aabb,dt);
 
 		ivec2 chunk_pos;
 		world_pos_to_chunk_pos(player.aabb.position,chunk_pos);
