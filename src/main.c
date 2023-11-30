@@ -1,8 +1,6 @@
 #include <player.h>
 
-Player player = {
-	.aabb = {.position = {8,80,8}},
-};
+Player player;
 
 Camera camera = {
 	.position = {8,80,8},
@@ -18,9 +16,8 @@ void error_callback(int error, const char* description)
 	fprintf(stderr, "Error: %s\n", description);
 }
 
-int cam_dir[3];
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
+bool move_left,move_right,move_backward,move_forward;
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
 	switch (action){
 		case GLFW_PRESS:{
 			switch (key){
@@ -28,19 +25,19 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 					glfwSetWindowShouldClose(window, GLFW_TRUE);
 					break;
 				}
-				case GLFW_KEY_A: if (!cam_dir[0]) cam_dir[0] = -1; else if (cam_dir[0] == 1) cam_dir[0] = 2; break;
-				case GLFW_KEY_D: if (!cam_dir[0]) cam_dir[0] = 1; else if (cam_dir[0] == -1) cam_dir[0] = -2; break;
-				case GLFW_KEY_S: if (!cam_dir[2]) cam_dir[2] = -1; else if (cam_dir[2] == 1) cam_dir[2] = 2; break;
-				case GLFW_KEY_W: if (!cam_dir[2]) cam_dir[2] = 1; else if (cam_dir[2] == -1) cam_dir[2] = -2; break;
+				case GLFW_KEY_A: move_left = true; break;
+				case GLFW_KEY_D: move_right = true; break;
+				case GLFW_KEY_S: move_backward = true; break;
+				case GLFW_KEY_W: move_forward = true; break;
 			}
 			break;
 		}
 		case GLFW_RELEASE:{
 			switch (key){
-				case GLFW_KEY_A: if (cam_dir[0] == -1) cam_dir[0] = 0; else if (cam_dir[0] == -2) cam_dir[0] = 1; else if (cam_dir[0] == 2) cam_dir[0] = 1; break;
-				case GLFW_KEY_D: if (cam_dir[0] == 1) cam_dir[0] = 0; else if (cam_dir[0] == 2) cam_dir[0] = -1; else if (cam_dir[0] == -2) cam_dir[0] = -1; break;
-				case GLFW_KEY_S: if (cam_dir[2] == -1) cam_dir[2] = 0; else if (cam_dir[2] == -2) cam_dir[2] = 1; else if (cam_dir[2] == 2) cam_dir[2] = 1; break;
-				case GLFW_KEY_W: if (cam_dir[2] == 1) cam_dir[2] = 0; else if (cam_dir[2] == 2) cam_dir[2] = -1; else if (cam_dir[2] == -2) cam_dir[2] = -1; break;
+				case GLFW_KEY_A: move_left = false; break;
+				case GLFW_KEY_D: move_right = false; break;
+				case GLFW_KEY_S: move_backward = false; break;
+				case GLFW_KEY_W: move_forward = false; break;
 			}
 			break;
 		}
@@ -162,6 +159,8 @@ void main(void)
 	texture_from_file(&block_atlas,"../res/blocks.png");
 	srand(time(0));
 
+	init_player(&player,(vec3){8,80,8},(vec3){0,0,0});
+
 	double t0 = glfwGetTime();
  
 	while (!glfwWindowShouldClose(window))
@@ -173,13 +172,37 @@ void main(void)
 		//move camera based on cam_dir
 		mat4 crot;
 		glm_euler_zyx(camera.euler,crot);
-		vec3 forward, right;
-		glm_vec3(crot[2],forward);
-		glm_vec3(crot[0],right);
-		glm_vec3_scale(forward,glm_sign(-cam_dir[2])*20.0f*dt,forward);
-		glm_vec3_scale(right,glm_sign(cam_dir[0])*20.0f*dt,right);
-		glm_vec3_add(camera.position,forward,camera.position);
-		glm_vec3_add(camera.position,right,camera.position);
+		vec3 c_right,c_backward;
+		glm_vec3(crot[0],c_right);
+		glm_vec3(crot[2],c_backward);
+		ivec2 move_dir;
+		if (move_left && move_right){
+			move_dir[0] = 0;
+		} else if (move_left){
+			move_dir[0] = -1;
+		} else if (move_right){
+			move_dir[0] = 1;
+		} else {
+			move_dir[0] = 0;
+		}
+		if (move_backward && move_forward){
+			move_dir[1] = 0;
+		} else if (move_backward){
+			move_dir[1] = 1;
+		} else if (move_forward){
+			move_dir[1] = -1;
+		} else {
+			move_dir[1] = 0;
+		}
+		if (move_dir[0] || move_dir[1]){
+			glm_vec3_scale(c_right,move_dir[0],c_right);
+			glm_vec3_scale(c_backward,move_dir[1],c_backward);
+			vec3 move_vec;
+			glm_vec3_add(c_right,c_backward,move_vec);
+			glm_vec3_normalize(move_vec);
+			glm_vec3_scale(move_vec,20.0f*dt,move_vec);
+			glm_vec3_add(camera.position,move_vec,camera.position);
+		}
 
 		ivec2 chunk_pos;
 		world_pos_to_chunk_pos(camera.position,chunk_pos);
