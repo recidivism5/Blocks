@@ -1,38 +1,6 @@
-#pragma once
-#if defined __INTELLISENSE__
-#undef INCLUDED
-#endif
-#ifdef INCLUDED
-#define INCLUDED 1
-#else
-#define INCLUDED 0
-#endif
-#pragma push_macro("INCLUDED")
+#include <player.h>
 
-#include "world.c"
-#include "camera.c"
-
-#pragma pop_macro("INCLUDED")
-
-typedef struct {
-	vec3 half_extents;
-	vec3 position;
-	vec3 velocity;
-} AABB;
-
-typedef struct {
-	vec3 min;
-	vec3 max;
-} MMBB;
-
-typedef struct {
-	size_t total, used;
-	MMBB *elements;
-} MMBBList;
-
-MMBB *MMBBListMakeRoom(MMBBList *list, size_t count)
-#if INCLUDED == 0
-{
+MMBB *MMBBListMakeRoom(MMBBList *list, size_t count){
 	if (list->used+count > list->total){
 		if (!list->total) list->total = 1;
 		while (list->used+count > list->total) list->total *= 2;
@@ -41,64 +9,34 @@ MMBB *MMBBListMakeRoom(MMBBList *list, size_t count)
 	list->used += count;
 	return list->elements+list->used-count;
 }
-#else
-;
-#endif
 
-void aabb_to_mmbb(AABB *a, MMBB *m)
-#if INCLUDED == 0
-{
+void aabb_to_mmbb(AABB *a, MMBB *m){
 	glm_vec3_sub(a->position,a->half_extents,m->min);
 	glm_vec3_add(a->position,a->half_extents,m->max);
 }
-#else
-;
-#endif
 
-void expand_mmbb(MMBB *m, vec3 v)
-#if INCLUDED == 0
-{
+void expand_mmbb(MMBB *m, vec3 v){
 	for (int i = 0; i < 3; i++){
 		if (v[i] < 0) m->min[i] -= v[i];
 		else m->max[i] += v[i];
 	}
 }
-#else
-;
-#endif
 
-void mmbb_get_center(MMBB *m, vec3 c)
-#if INCLUDED == 0
-{
+void mmbb_get_center(MMBB *m, vec3 c){
 	for (int i = 0; i < 3; i++){
 		c[i] = m->min[i] + 0.5f*(m->max[i]-m->min[i]);
 	}
 }
-#else
-;
-#endif
 
-typedef struct {
-	AABB aabb;
-	vec3 head_euler;
-} Player;
-
-void init_player(Player *p, vec3 position, vec3 head_euler)
-#if INCLUDED == 0
-{
+void init_player(Player *p, vec3 position, vec3 head_euler){
 	p->aabb.half_extents[0] = 0.25f;
 	p->aabb.half_extents[1] = 0.9f;
 	p->aabb.half_extents[2] = 0.25f;
 	glm_vec3_copy(position,p->aabb.position);
 	glm_vec3_copy(head_euler,p->head_euler);
 }
-#else
-;
-#endif
 
-void update_player(World *w, Player *p, double dt)
-#if INCLUDED == 0
-{
+void update_player(World *w, Player *p, double dt){
 	vec3 d;
 	glm_vec3_scale(p->aabb.velocity,dt,d);
 	vec3 d_initial;
@@ -192,6 +130,3 @@ void update_player(World *w, Player *p, double dt)
 		}
 	}
 }
-#else
-;
-#endif

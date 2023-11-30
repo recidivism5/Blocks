@@ -1,25 +1,4 @@
-#pragma once
-#if defined __INTELLISENSE__
-#undef INCLUDED
-#endif
-#ifdef INCLUDED
-#define INCLUDED 1
-#else
-#define INCLUDED 0
-#endif
-#pragma push_macro("INCLUDED")
-
-#include <glad/glad.h>
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-#include <stdint.h>
-#include <zlib.h>
-#include <tinydir.h>
-#include <cglm/cglm.h>
-
-#include "renderer.c"
-
-#pragma pop_macro("INCLUDED")
+#include <world.h>
 
 /*
 Scaevolus' Region File Format explanation:
@@ -31,12 +10,7 @@ https://www.reddit.com/r/Minecraft/comments/evzbs/comment/c1bg51k/?utm_source=sh
 Map format:
 https://wiki.vg/Map_Format
 */
-typedef struct {
-	char *name;
-	int faces[6][2];
-} BlockType;
 
-#if INCLUDED == 0
 BlockType block_types[] = {
 	{"air",{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
 	{"bedrock",{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
@@ -44,46 +18,8 @@ BlockType block_types[] = {
 	{"dirt",{{0,3},{0,3},{0,3},{0,3},{0,3},{0,3}}},
 	{"grass",{{0,2},{0,2},{0,3},{0,1},{0,2},{0,2}}},
 };
-#else
-extern BlockType block_types[];
-#endif
 
-typedef enum {
-	BLOCK_AIR,
-	BLOCK_BEDROCK,
-	BLOCK_STONE,
-	BLOCK_DIRT,
-	BLOCK_GRASS
-} BlockId;
-
-#define CHUNK_WIDTH 16
-#define CHUNK_HEIGHT 256
-typedef struct {
-	uint8_t id, r, g, b;
-} Block;
-typedef struct {
-	bool neighbors_exist[4];
-	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
-	GLuint vbo_id;
-	int vertex_count;
-} Chunk;
-
-typedef struct ChunkLinkedHashListBucket {
-	struct ChunkLinkedHashListBucket *prev, *next;
-	ivec2 position;
-	Chunk *chunk;
-} ChunkLinkedHashListBucket;
-
-typedef struct {
-	size_t total, used, tombstones;
-	ChunkLinkedHashListBucket *buckets, *first, *last;
-} ChunkLinkedHashList;
-
-#define TOMBSTONE UINTPTR_MAX
-
-ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position)
-#if INCLUDED == 0
-{
+ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position){
 	if (!list->total) return 0;
 	size_t index = fnv_1a(sizeof(position),position) % list->total;
 	ChunkLinkedHashListBucket *tombstone = 0;
@@ -95,24 +31,14 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ive
 		index = (index + 1) % list->total;
 	}
 }
-#else
-;
-#endif
 
-ChunkLinkedHashListBucket *ChunkLinkedHashListGetChecked(ChunkLinkedHashList *list, ivec2 position)
-#if INCLUDED == 0
-{
+ChunkLinkedHashListBucket *ChunkLinkedHashListGetChecked(ChunkLinkedHashList *list, ivec2 position){
 	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGet(list,position);
 	if (!b || b->chunk == 0 || b->chunk == TOMBSTONE) return 0;
 	return b;
 }
-#else
-;
-#endif
 
-void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
-#if INCLUDED == 0
-{
+void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 	b->chunk = TOMBSTONE;
 	if (b->prev) b->prev->next = b->next;
 	if (b->next) b->next->prev = b->prev;
@@ -121,13 +47,8 @@ void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBuc
 	list->used--;
 	list->tombstones++;
 }
-#else
-;
-#endif
 
-ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ivec2 position)
-#if INCLUDED == 0
-{
+ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ivec2 position){
 	if ((list->used+list->tombstones+1) > (list->total*3)/4){
 		ChunkLinkedHashList newList;
 		newList.total = 8;
@@ -169,14 +90,8 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 	list->used++;
 	return b;
 }
-#else
-;
-#endif
 
-#define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
-void gen_chunk(Chunk *c)
-#if INCLUDED == 0
-{
+void gen_chunk(Chunk *c){
 	int h = rand_int(CHUNK_HEIGHT/8);
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
@@ -192,11 +107,7 @@ void gen_chunk(Chunk *c)
 		}
 	}
 }
-#else
-;
-#endif
 
-#if INCLUDED == 0
 vec3 cube_verts[] = {
 	0,1,0, 0,0,0, 0,0,1, 0,0,1, 0,1,1, 0,1,0,
 	1,1,1, 1,0,1, 1,0,0, 1,0,0, 1,1,0, 1,1,1,
@@ -207,13 +118,8 @@ vec3 cube_verts[] = {
 	1,1,0, 1,0,0, 0,0,0, 0,0,0, 0,1,0, 1,1,0,
 	0,1,1, 0,0,1, 1,0,1, 1,0,1, 1,1,1, 0,1,1,
 };
-#else
-extern vec3 cube_verts[];
-#endif
 
-void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt)
-#if INCLUDED == 0
-{
+void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt){
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
 	for (int i = 0; i < 6; i++){
 		v[i].x = x + cube_verts[face_id*6+i][0];
@@ -242,13 +148,8 @@ void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int fac
 	v[5].u = v[0].u;
 	v[5].v = v[0].v;
 }
-#else
-;
-#endif
 
-void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
-#if INCLUDED == 0
-{
+void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 	Chunk *c = b->chunk;
 	TextureColorVertexList tvl = {0};
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
@@ -289,27 +190,8 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
 		free(tvl.elements);
 	}
 }
-#else
-;
-#endif
 
-typedef struct {
-	FILE *file_ptr;
-	struct {
-		int sector_number;
-		int sector_count;
-	} chunk_positions[32*32];
-	int sector_count;
-	bool *sector_usage;
-} Region;
-
-typedef struct {
-	ChunkLinkedHashList chunks;
-} World;
-
-Block *get_block(World *w, int x, int y, int z)
-#if INCLUDED == 0
-{
+Block *get_block(World *w, int x, int y, int z){
 	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(x+(x<0))/CHUNK_WIDTH-(x<0),(z+(z<0))/CHUNK_WIDTH-(z<0)});
 	if (b){
 		return b->chunk->blocks + BLOCK_AT(modulo(x,CHUNK_WIDTH),y,modulo(z,CHUNK_WIDTH));
@@ -317,6 +199,3 @@ Block *get_block(World *w, int x, int y, int z)
 		return 0;
 	}
 }
-#else
-;
-#endif

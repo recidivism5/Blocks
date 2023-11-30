@@ -1,27 +1,6 @@
-#pragma once
-#if defined __INTELLISENSE__
-#undef INCLUDED
-#endif
-#ifdef INCLUDED
-#define INCLUDED 1
-#else
-#define INCLUDED 0
-#endif
-#pragma push_macro("INCLUDED")
+#include <renderer.h>
 
-#include <glad/glad.h>
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-#include <zlib.h>
-#include <png.h>
-
-#include "base.c"
-
-#pragma pop_macro("INCLUDED")
-
-GLenum glCheckError_(const char *file, int line)
-#if INCLUDED == 0
-{
+GLenum glCheckError_(const char *file, int line){
 	GLenum errorCode;
 	while ((errorCode = glGetError()) != GL_NO_ERROR){
 		char *error;
@@ -36,19 +15,8 @@ GLenum glCheckError_(const char *file, int line)
 	}
 	return errorCode;
 }
-#else
-;
-#endif
-#define glCheckError() glCheckError_(__FILE__, __LINE__)
 
-typedef struct {
-	GLuint id;
-	int width, height;
-} Texture;
-
-void texture_from_file(Texture *t, char *path)
-#if INCLUDED == 0
-{
+void texture_from_file(Texture *t, char *path){
 	//from https://gist.github.com/Svensational/6120653
 	png_image image = {0};
 	image.version = PNG_IMAGE_VERSION;
@@ -74,13 +42,8 @@ void texture_from_file(Texture *t, char *path)
 	glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,t->width,t->height,0,GL_RGBA,GL_UNSIGNED_BYTE,buffer);
 	free(buffer);
 }
-#else
-;
-#endif
 
-void check_shader(char *name, char *type, GLuint id)
-#if INCLUDED == 0
-{
+void check_shader(char *name, char *type, GLuint id){
 	GLint result;
 	glGetShaderiv(id,GL_COMPILE_STATUS,&result);
 	if (!result){
@@ -89,13 +52,8 @@ void check_shader(char *name, char *type, GLuint id)
 		fatal_error("%s %s shader compile error: %s",name,type,infolog);
 	}
 }
-#else
-;
-#endif
 
-void check_program(char *name, char *status_name, GLuint id, GLenum param)
-#if INCLUDED == 0
-{
+void check_program(char *name, char *status_name, GLuint id, GLenum param){
 	GLint result;
 	glGetProgramiv(id,param,&result);
 	if (!result){
@@ -104,13 +62,8 @@ void check_program(char *name, char *status_name, GLuint id, GLenum param)
 		fatal_error("%s shader %s error: %s",name,status_name,infolog);
 	}
 }
-#else
-;
-#endif
 
-GLuint compile_shader(char *name, char *vert_src, char *frag_src)
-#if INCLUDED == 0
-{
+GLuint compile_shader(char *name, char *vert_src, char *frag_src){
 	GLuint v = glCreateShader(GL_VERTEX_SHADER);
 	GLuint f = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(v,1,&vert_src,NULL);
@@ -128,23 +81,8 @@ GLuint compile_shader(char *name, char *vert_src, char *frag_src)
 	glDeleteShader(f);
 	return p;
 }
-#else
-;
-#endif
 
-typedef struct {
-	float x,y,z, u,v;
-	uint32_t color;
-} TextureColorVertex;
-
-typedef struct {
-	size_t total, used;
-	TextureColorVertex *elements;
-} TextureColorVertexList;
-
-TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, size_t count)
-#if INCLUDED == 0
-{
+TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, size_t count){
 	if (list->used+count > list->total){
 		if (!list->total) list->total = 1;
 		while (list->used+count > list->total) list->total *= 2;
@@ -153,22 +91,8 @@ TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list,
 	list->used += count;
 	return list->elements+list->used-count;
 }
-#else
-;
-#endif
 
-struct {
-	char *vert_src;
-	char *frag_src;
-	GLuint id;
-	GLint aPosition;
-	GLint aTexCoord;
-	GLint aColor;
-	GLint uMVP;
-	GLint uTex;
-} texture_color_shader
-#if INCLUDED == 0
- = {
+struct TextureColorShader texture_color_shader = {
 	"#version 110\n"
 	"attribute vec3 aPosition;\n"
 	"attribute vec2 aTexCoord;\n"
@@ -190,17 +114,12 @@ struct {
 	"	gl_FragColor = texture2D(uTex,vTexCoord) * vColor;\n"
 	"}"
 };
-#else
-;
-#endif
 
 #define COMPILE_SHADER(s) s.id = compile_shader(#s,s.vert_src,s.frag_src)
 #define GET_ATTRIB(s,a) s.a = glGetAttribLocation(s.id,#a)
 #define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
 
-void compile_texture_color_shader()
-#if INCLUDED == 0
-{
+void compile_texture_color_shader(){
 	COMPILE_SHADER(texture_color_shader);
 	GET_ATTRIB(texture_color_shader,aPosition);
 	GET_ATTRIB(texture_color_shader,aTexCoord);
@@ -208,13 +127,8 @@ void compile_texture_color_shader()
 	GET_UNIFORM(texture_color_shader,uMVP);
 	GET_UNIFORM(texture_color_shader,uTex);
 }
-#else
-;
-#endif
 
-void texture_color_shader_prep_buffer()
-#if INCLUDED == 0
-{
+void texture_color_shader_prep_buffer(){
 	glEnableVertexAttribArray(texture_color_shader.aPosition);
 	glEnableVertexAttribArray(texture_color_shader.aTexCoord);
 	glEnableVertexAttribArray(texture_color_shader.aColor);
@@ -222,15 +136,7 @@ void texture_color_shader_prep_buffer()
 	glVertexAttribPointer(texture_color_shader.aTexCoord,2,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,u));
 	glVertexAttribPointer(texture_color_shader.aColor,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,color));
 }
-#else
-;
-#endif
 
-void compile_shaders()
-#if INCLUDED == 0
-{
+void compile_shaders(){
 	compile_texture_color_shader();
 }
-#else
-;
-#endif

@@ -1,38 +1,6 @@
-#pragma once
-#if defined __INTELLISENSE__
-#undef INCLUDED
-#endif
-#ifdef INCLUDED
-#define INCLUDED 1
-#else
-#define INCLUDED 0
-#endif
-#pragma push_macro("INCLUDED")
+#include <base.h>
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <boxer/boxer.h>
-
-#pragma pop_macro("INCLUDED")
-
-#undef near //fuck deez macros lol
-#undef far
-#undef min
-#undef max
-#define COUNT(arr) (sizeof(arr)/sizeof(*arr))
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-#define CLAMP(a,min,max) ((a) < (min) ? (min) : (a) > (max) ? (max) : (a))
-#define SWAP(temp,a,b) (temp)=(a); (a)=(b); (b)=(temp)
-#define LERP(a,b,t) ((a) + (t)*((b)-(a)))
-
-void fatal_error(char *format, ...)
-#if INCLUDED == 0
-{
+void fatal_error(char *format, ...){
 	va_list args;
 	va_start(args,format);
 	char msg[1024];
@@ -41,51 +9,26 @@ void fatal_error(char *format, ...)
 	va_end(args);
 	exit(1);
 }
-#else
-;
-#endif
 
-void *malloc_or_die(size_t size)
-#if INCLUDED == 0
-{
+void *malloc_or_die(size_t size){
 	void *p = malloc(size);
 	if (!p) fatal_error("malloc failed.");
 	return p;
 }
-#else
-;
-#endif
 
-void *zalloc_or_die(size_t size)
-#if INCLUDED == 0
-{
+void *zalloc_or_die(size_t size){
 	void *p = calloc(1,size);
 	if (!p) fatal_error("zalloc failed.");
 	return p;
 }
-#else
-;
-#endif
 
-void *realloc_or_die(void *ptr, size_t size)
-#if INCLUDED == 0
-{
+void *realloc_or_die(void *ptr, size_t size){
 	void *p = realloc(ptr,size);
 	if (!p) fatal_error("realloc failed.");
 	return p;
 }
-#else
-;
-#endif
 
-/*
-rand_int
-From: https://stackoverflow.com/a/822361
-Generates uniform random integers in range [0,n).
-*/
-int rand_int(int n)
-#if INCLUDED == 0
-{
+int rand_int(int n){
 	if ((n - 1) == RAND_MAX){
 		return rand();
 	} else {
@@ -100,31 +43,12 @@ int rand_int(int n)
 		return r % n;
 	}
 }
-#else
-;
-#endif
 
-/*
-rand_int_range
-Generates uniform random integers in range [min,max],
-where min >= 0 and max >= min.
-*/
-int rand_int_range(int min, int max)
-#if INCLUDED == 0
-{
+int rand_int_range(int min, int max){
 	return rand_int(max-min+1) + min;
 }
-#else
-;
-#endif
 
-/*
-fnv_1a
-Fowler–Noll–Vo hash function. https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-*/
-uint32_t fnv_1a(int keylen, char *key)
-#if INCLUDED == 0
-{
+uint32_t fnv_1a(int keylen, char *key){
 	uint32_t index = 2166136261u;
 	for (int i = 0; i < keylen; i++){
 		index ^= key[i];
@@ -132,15 +56,7 @@ uint32_t fnv_1a(int keylen, char *key)
 	}
 	return index;
 }
-#else
-	;
-#endif
 
-int modulo(int i, int m)
-#if INCLUDED == 0
-{
+int modulo(int i, int m){
 	return (i % m + m) % m;
 }
-#else
-;
-#endif

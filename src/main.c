@@ -1,23 +1,4 @@
-#pragma once
-#if defined __INTELLISENSE__
-#undef INCLUDED
-#endif
-#ifdef INCLUDED
-#define INCLUDED 1
-#else
-#define INCLUDED 0
-#endif
-#pragma push_macro("INCLUDED")
-
-#include <glad/glad.h>
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-#include <zlib.h>
-#include <tinydir.h>
-
-#include "player.c"
-
-#pragma pop_macro("INCLUDED")
+#include <player.h>
 
 Player player = {
 	.aabb = {.position = {8,80,8}},
