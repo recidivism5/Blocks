@@ -99,6 +99,17 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ive
 ;
 #endif
 
+ChunkLinkedHashListBucket *ChunkLinkedHashListGetChecked(ChunkLinkedHashList *list, ivec2 position)
+#if INCLUDED == 0
+{
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGet(list,position);
+	if (!b || b->chunk == 0 || b->chunk == TOMBSTONE) return 0;
+	return b;
+}
+#else
+;
+#endif
+
 void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b)
 #if INCLUDED == 0
 {
@@ -204,7 +215,6 @@ void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int fac
 #if INCLUDED == 0
 {
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
-	tvl->used += 6;
 	for (int i = 0; i < 6; i++){
 		v[i].x = x + cube_verts[face_id*6+i][0];
 		v[i].y = y + cube_verts[face_id*6+i][1];
@@ -296,3 +306,17 @@ typedef struct {
 typedef struct {
 	ChunkLinkedHashList chunks;
 } World;
+
+Block *get_block(World *w, int x, int y, int z)
+#if INCLUDED == 0
+{
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(x+(x<0))/CHUNK_WIDTH-(x<0),(z+(z<0))/CHUNK_WIDTH-(z<0)});
+	if (b){
+		return b->chunk->blocks + BLOCK_AT(modulo(x,CHUNK_WIDTH),y,modulo(z,CHUNK_WIDTH));
+	} else {
+		return 0;
+	}
+}
+#else
+;
+#endif

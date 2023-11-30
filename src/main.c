@@ -15,13 +15,16 @@
 #include <zlib.h>
 #include <tinydir.h>
 
-#include "world.c"
-#include "camera.c"
+#include "player.c"
 
 #pragma pop_macro("INCLUDED")
 
+Player player = {
+	.aabb = {.position = {8,80,8}},
+};
+
 Camera camera = {
-	.position = {8,34,8},
+	.position = {8,80,8},
 	.euler = {0,0,0},
 	.fov_radians = 0.5f*M_PI
 };
@@ -202,8 +205,8 @@ void main(void)
 		ManhattanSpiralGenerator msg;
 		manhattan_spiral_generator_init(&msg,chunk_pos);
 		while (msg.radius <= chunk_radius){
-			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGet(&world.chunks,msg.cur_pos);
-			if (!b || b->chunk == 0 || b->chunk == TOMBSTONE){
+			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&world.chunks,msg.cur_pos);
+			if (!b){
 				b = ChunkLinkedHashListNew(&world.chunks,msg.cur_pos);
 				ChunkLinkedHashListBucket *oldb = world.chunks.first;
 				while (oldb && manhattan_distance_2d(oldb->position,chunk_pos) <= chunk_radius){
@@ -242,9 +245,9 @@ void main(void)
 			glm_mat4_transpose_to(crot,inv_crot);
 			mat4 view;
 			vec3 trans = {
-				b->position[0] * 16,
+				b->position[0] * CHUNK_WIDTH,
 				0,
-				b->position[1] * 16
+				b->position[1] * CHUNK_WIDTH
 			};
 			glm_vec3_sub(trans,camera.position,trans);
 			glm_translate_make(view,trans);

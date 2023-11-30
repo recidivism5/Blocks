@@ -135,3 +135,12 @@ uint32_t fnv_1a(int keylen, char *key)
 #else
 	;
 #endif
+
+int modulo(int i, int m)
+#if INCLUDED == 0
+{
+	return (i % m + m) % m;
+}
+#else
+;
+#endif

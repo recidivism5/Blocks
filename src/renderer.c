@@ -150,7 +150,8 @@ TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list,
 		while (list->used+count > list->total) list->total *= 2;
 		list->elements = realloc_or_die(list->elements,list->total*sizeof(*list->elements));
 	}
-	return list->elements+list->used;
+	list->used += count;
+	return list->elements+list->used-count;
 }
 #else
 ;

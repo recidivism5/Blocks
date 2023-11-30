@@ -33,3 +33,4 @@ I'm targetting a kind of mix between classic, alpha and beta. I don't want a net
 - [ ] Colored glass
 - [ ] Terrain LOD
 - [ ] Juke box, BPM estimator, nearby dancing entities sync to the beat
+- [ ] Grappling hook
