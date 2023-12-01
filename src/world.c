@@ -93,16 +93,32 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 
 void gen_chunk(ChunkLinkedHashListBucket *b){
 	Chunk *c = b->chunk;
-	float height_map[CHUNK_WIDTH*CHUNK_WIDTH];
+#define HEIGHTMAP_WIDTH (CHUNK_WIDTH+1)
+#define HEIGHT_AT(x,z) ((z)*HEIGHTMAP_WIDTH+(x))
+	static float height_map[HEIGHTMAP_WIDTH*HEIGHTMAP_WIDTH];
+	for (int z = 0; z < HEIGHTMAP_WIDTH; z+=4){
+		for (int x = 0; x < HEIGHTMAP_WIDTH; x+=4){
+			height_map[HEIGHT_AT(x,z)] = (CHUNK_HEIGHT-1)*(0.4f+fractal_perlin_noise_2d(b->position[0]*CHUNK_WIDTH+x,b->position[1]*CHUNK_WIDTH+z,0.2f,0.005f,8));
+		}
+	}
 	for (int z = 0; z < CHUNK_WIDTH; z++){
 		for (int x = 0; x < CHUNK_WIDTH; x++){
-			height_map[z*CHUNK_WIDTH+x] = (CHUNK_HEIGHT-1)*(0.3f+0.8f*perlin_noise_2d(0.01f*(b->position[0]*CHUNK_WIDTH+x),0.01f*(b->position[1]*CHUNK_WIDTH+z)));
+			int min[2] = {(x/4)*4,(z/4)*4};
+			int max[2] = {min[0]+4,min[1]+4};
+			float xt = (float)(x%4)/4.0f;
+			float zt = (float)(z%4)/4.0f;
+			height_map[HEIGHT_AT(x,z)] =
+				glm_lerp(
+					glm_lerp(height_map[HEIGHT_AT(min[0],min[1])],height_map[HEIGHT_AT(max[0],min[1])],xt),
+					glm_lerp(height_map[HEIGHT_AT(min[0],max[1])],height_map[HEIGHT_AT(max[0],max[1])],xt),
+					zt
+				);
 		}
 	}
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				int h = height_map[z*CHUNK_WIDTH+x];
+				int h = height_map[HEIGHT_AT(x,z)];
 				if (y < h){
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
 				} else if (y == h){
@@ -113,6 +129,8 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 			}
 		}
 	}
+#undef HEIGHTMAP_WIDTH
+#undef HEIGHT_AT
 }
 
 vec3 cube_verts[] = {

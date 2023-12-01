@@ -49,4 +49,4 @@ float perlin_noise_2d( float x, float y );
 */
 float perlin_noise_3d( float x, float y, float z );
 
-float fractal_perlin_noise_2d(float x, float y, int octaves);
+float fractal_perlin_noise_2d(float x, float y, float initial_amplitude, float initial_frequency, int octaves);

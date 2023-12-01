@@ -255,11 +255,12 @@ float perlin_noise_3d( float x, float y, float z )
     return 0.936f * ( LERP( s, n0, n1 ) );
 }
 
-float fractal_perlin_noise_2d(float x, float y, int octaves){
-    float amplitude = 1.0f;
-    float f = 0.0f;
+float fractal_perlin_noise_2d(float x, float y, float initial_amplitude, float initial_frequency, int octaves){
+    float s = 0.0f;
     for (int i = 0; i < octaves; i++){
-        //f += perlin_noise_2d(
+        s += initial_amplitude * perlin_noise_2d(initial_frequency*x,initial_frequency*y);
+        initial_amplitude *= 0.5f;
+        initial_frequency *= 2.0f;
     }
-    return f;
+    return s;
 }
