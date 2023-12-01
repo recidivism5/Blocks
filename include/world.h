@@ -57,7 +57,11 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 
 void gen_chunk(ChunkLinkedHashListBucket *b);
 
-vec3 cube_verts[];
+extern vec3 cube_verts[];
+
+extern GPUMesh block_outline;
+
+void init_block_outline();
 
 void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt);
 
@@ -79,4 +83,4 @@ typedef struct {
 
 Block *get_block(World *w, int x, int y, int z);
 
-Block *block_raycast(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal);
+Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal);

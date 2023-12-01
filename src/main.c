@@ -179,6 +179,8 @@ void main(void)
 
 	init_player(&player,(vec3){8,80,8},(vec3){0,0,0});
 
+	init_block_outline();
+
 	double t0 = glfwGetTime();
  
 	while (!glfwWindowShouldClose(window))
@@ -187,11 +189,17 @@ void main(void)
 		double dt = t1 - t0;
 		t0 = t1;
 
+		int width,height;
+		glfwGetFramebufferSize(window, &width, &height);
+
 		mat4 crot;
 		glm_euler_zyx(player.head_euler,crot);
 		vec3 c_right,c_backward;
 		glm_vec3(crot[0],c_right);
 		glm_vec3(crot[2],c_backward);
+		mat4 inv_crot;
+		glm_mat4_transpose_to(crot,inv_crot);
+
 		ivec2 move_dir;
 		if (keys.left && keys.right){
 			move_dir[0] = 0;
@@ -279,8 +287,10 @@ void main(void)
 			manhattan_spiral_generator_get_next_position(&msg);
 		}
 
-		int width,height;
-		glfwGetFramebufferSize(window, &width, &height);
+		vec3 player_head;
+		get_player_head_position(&player,player_head);
+		mat4 persp;
+		glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
  
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 		glViewport(0, 0, width, height);
@@ -297,27 +307,49 @@ void main(void)
 		glBindTexture(GL_TEXTURE_2D,block_atlas.id);
 		for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
 			if (b->chunk->mesh.vertex_count){
-				mat4 inv_crot;
-				glm_mat4_transpose_to(crot,inv_crot);
 				mat4 view;
 				vec3 trans = {
 					b->position[0] * CHUNK_WIDTH,
 					0,
 					b->position[1] * CHUNK_WIDTH
 				};
-				vec3 player_head;
-				get_player_head_position(&player,player_head);
 				glm_vec3_sub(trans,player_head,trans);
 				glm_translate_make(view,trans);
 				glm_mat4_mul(inv_crot,view,view);
-				mat4 persp;
-				glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
+				
 				mat4 mvp;
 				glm_mat4_mul(persp,view,mvp);
 				glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
 				glBindVertexArray(b->chunk->mesh.vao);
 				glDrawArrays(GL_TRIANGLES,0,b->chunk->mesh.vertex_count);
 			}
+		}
+
+		vec3 player_look;
+		glm_vec3_negate_to(c_backward,player_look);
+		glm_vec3_scale(player_look,5.0f,player_look);
+		float t;
+		ivec3 block_pos;
+		ivec3 face_normal;
+		Block *b = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+		if (b){
+			glUseProgram(color_shader.id);
+			mat4 mvp;
+			float padding = 0.0125f;
+			vec3 trans = {
+				block_pos[0]-player_head[0]-padding/2,
+				block_pos[1]-player_head[1]-padding/2,
+				block_pos[2]-player_head[2]-padding/2,
+			};
+			glm_translate_make(mvp,trans);
+			mvp[0][0] = 1.0f + padding;
+			mvp[1][1] = 1.0f + padding;
+			mvp[2][2] = 1.0f + padding;
+			glm_mat4_mul(inv_crot,mvp,mvp);
+			glm_mat4_mul(persp,mvp,mvp);
+			glUniformMatrix4fv(color_shader.uMVP,1,GL_FALSE,mvp);
+			glBindVertexArray(block_outline.vao);
+			glDrawArrays(GL_LINES,0,block_outline.vertex_count);
 		}
 
 		glCheckError();

@@ -187,22 +187,27 @@ vec3 cube_verts[] = {
 	0,1,1, 0,0,1, 1,0,1, 1,0,1, 1,1,1, 0,1,1,
 };
 
-vec3 block_outline[] = {
-	0,1,0, 0,0,0,
-	0,0,0, 0,0,1,
-	0,0,1, 0,1,1,
-	0,1,1, 0,1,0,
+GPUMesh block_outline;
+void init_block_outline(){
+	uint32_t c = RGBA(0,0,0,127);
+	ColorVertex v[] = {
+		0,1,0,c, 0,0,0,c,
+		0,0,0,c, 0,0,1,c,
+		0,0,1,c, 0,1,1,c,
+		0,1,1,c, 0,1,0,c,
 
-	1,1,0, 1,0,0,
-	1,0,0, 1,0,1,
-	1,0,1, 1,1,1,
-	1,1,1, 1,1,0,
+		1,1,0,c, 1,0,0,c,
+		1,0,0,c, 1,0,1,c,
+		1,0,1,c, 1,1,1,c,
+		1,1,1,c, 1,1,0,c,
 
-	0,1,0, 1,1,0,
-	0,0,0, 1,0,0,
-	0,0,1, 1,0,1,
-	0,1,1, 1,1,1,
-};
+		0,1,0,c, 1,1,0,c,
+		0,0,0,c, 1,0,0,c,
+		0,0,1,c, 1,0,1,c,
+		0,1,1,c, 1,1,1,c,
+	};
+	gpu_mesh_from_color_verts(&block_outline,v,COUNT(v));
+}
 
 float ambient_light_coefficients[6] = {0.6f,0.6f,0.5f,1.0f,0.8f,0.8f};
 
@@ -311,7 +316,7 @@ Block *get_block(World *w, int x, int y, int z){
 	}
 }
 
-Block *block_raycast(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal){
+Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal){
 	block_pos[0] = floorf(origin[0]);
 	block_pos[1] = floorf(origin[1]);
 	block_pos[2] = floorf(origin[2]);
@@ -347,37 +352,3 @@ Block *block_raycast(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos,
 	}
 	return 0;
 }
-
-/*u8 raycast(FVec3 origin, FVec3 direction, float *vScale, IVec3 *blockPos, IVec3 *face){
-	IVec3 gp = {floorf(origin.x),floorf(origin.y),floorf(origin.z)};
-	FVec3 da;
-	FOR(i,3){
-		if (direction.arr[i] >= 0) da.arr[i] = ((float)gp.arr[i]+1.0f-origin.arr[i]) / direction.arr[i];
-		else da.arr[i] = ((float)gp.arr[i]-origin.arr[i]) / direction.arr[i];
-	}
-	*vScale = 0;
-	int index = 0;
-	while (*vScale < 1){
-		u8 b;
-		Chunk *c;
-		if ((b = getBlock(gp.x,gp.y,gp.z,&c).id) && c){
-			*blockPos = gp;
-			*face = (IVec3){0,0,0};
-			face->arr[index] = direction.arr[index] < 0 ? 1 : -1;
-			return b;
-		}
-		float d = HUGE_VAL;
-		index = 0;
-		FOR(i,3){
-			if (da.arr[i] < d){
-				index = i;
-				d = da.arr[i];
-			}
-		}
-		gp.arr[index] += direction.arr[index] < 0 ? -1 : 1;
-		*vScale += da.arr[index];
-		FOR(i,3) da.arr[i] -= d;
-		da.arr[index] = fabsf(1.0f/direction.arr[index]);
-	}
-	return AIR;
-}*/
