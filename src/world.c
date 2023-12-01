@@ -161,7 +161,8 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
 				float s = density_map[DENSITY_AT(x,y,z)];
 				if (s > 0){
-					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_GRASS;
+					bool block_above = density_map[DENSITY_AT(x,y+1,z)] > 0;
+					c->blocks[BLOCK_AT(x,y,z)].id = block_above ? BLOCK_DIRT : BLOCK_GRASS;
 				} else {
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
 				}
@@ -186,14 +187,19 @@ vec3 cube_verts[] = {
 	0,1,1, 0,0,1, 1,0,1, 1,0,1, 1,1,1, 0,1,1,
 };
 
+float ambient_light_coefficients[6] = {0.6f,0.6f,0.5f,1.0f,0.8f,0.8f};
+
 void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt){
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
+	uint8_t ambient = ambient_light_coefficients[face_id] * 255;
+	uint32_t color = RGBA(ambient,ambient,ambient,255);
 	for (int i = 0; i < 6; i++){
 		v[i].x = x + cube_verts[face_id*6+i][0];
 		v[i].y = y + cube_verts[face_id*6+i][1];
 		v[i].z = z + cube_verts[face_id*6+i][2];
 
-		v[i].color = 0xffffffff;
+		uint8_t ambient = ambient_light_coefficients[face_id] * 255;
+		v[i].color = color;
 	}
 	float w = 1.0f/16.0f;
 

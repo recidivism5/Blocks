@@ -19,6 +19,7 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define CLAMP(a,min,max) ((a) < (min) ? (min) : (a) > (max) ? (max) : (a))
 #define SWAP(temp,a,b) (temp)=(a); (a)=(b); (b)=(temp)
+#define RGBA(r,g,b,a) ((r) | ((g)<<8) | ((b)<<16) | ((a)<<24))
 
 void fatal_error(char *format, ...);
 
