@@ -296,7 +296,7 @@ void main(void)
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D,block_atlas.id);
 		for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
-			if (b->chunk->vertex_count){
+			if (b->chunk->mesh.vertex_count){
 				mat4 inv_crot;
 				glm_mat4_transpose_to(crot,inv_crot);
 				mat4 view;
@@ -315,9 +315,8 @@ void main(void)
 				mat4 mvp;
 				glm_mat4_mul(persp,view,mvp);
 				glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-				glBindBuffer(GL_ARRAY_BUFFER,b->chunk->vbo_id);
-				texture_color_shader_prep_buffer();
-				glDrawArrays(GL_TRIANGLES,0,b->chunk->vertex_count);
+				glBindVertexArray(b->chunk->mesh.vao);
+				glDrawArrays(GL_TRIANGLES,0,b->chunk->mesh.vertex_count);
 			}
 		}
 

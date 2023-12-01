@@ -82,7 +82,49 @@ GLuint compile_shader(char *name, char *vert_src, char *frag_src){
 	return p;
 }
 
-TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, size_t count){
+#define COMPILE_SHADER(s) s.id = compile_shader(#s,s.vert_src,s.frag_src)
+#define GET_ATTRIB(s,a) s.a = glGetAttribLocation(s.id,#a)
+#define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
+
+struct ColorShader color_shader = {
+	"#version 110\n"
+	"attribute vec3 aPosition;\n"
+	"attribute vec4 aColor;\n"
+	"uniform mat4 uMVP;\n"
+	"varying vec4 vColor;\n"
+	"void main(){\n"
+	"	gl_Position = uMVP * vec4(aPosition,1.0f);\n"
+	"	vColor = aColor;\n"
+	"}",
+
+	"#version 110\n"
+	"varying vec4 vColor;\n"
+	"void main(){\n"
+	"	gl_FragColor = vColor;\n"
+	"}"
+};
+
+static void compile_color_shader(){
+	COMPILE_SHADER(color_shader);
+	GET_ATTRIB(color_shader,aPosition);
+	GET_ATTRIB(color_shader,aColor);
+	GET_UNIFORM(color_shader,uMVP);
+}
+
+void gpu_mesh_from_color_verts(GPUMesh *m, ColorVertex *verts, int count){
+	glGenVertexArrays(1,&m->vao);
+	glBindVertexArray(m->vao);
+	glGenBuffers(1,&m->vbo);
+	glBindBuffer(GL_ARRAY_BUFFER,m->vbo);
+	glBufferData(GL_ARRAY_BUFFER,count*sizeof(*verts),verts,GL_STATIC_DRAW);
+	glEnableVertexAttribArray(color_shader.aPosition);
+	glEnableVertexAttribArray(color_shader.aColor);
+	glVertexAttribPointer(color_shader.aPosition,3,GL_FLOAT,GL_FALSE,sizeof(ColorVertex),0);
+	glVertexAttribPointer(color_shader.aColor,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(ColorVertex),offsetof(ColorVertex,color));
+	m->vertex_count = count;
+}
+
+TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, int count){
 	if (list->used+count > list->total){
 		if (!list->total) list->total = 1;
 		while (list->used+count > list->total) list->total *= 2;
@@ -115,11 +157,7 @@ struct TextureColorShader texture_color_shader = {
 	"}"
 };
 
-#define COMPILE_SHADER(s) s.id = compile_shader(#s,s.vert_src,s.frag_src)
-#define GET_ATTRIB(s,a) s.a = glGetAttribLocation(s.id,#a)
-#define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
-
-void compile_texture_color_shader(){
+static void compile_texture_color_shader(){
 	COMPILE_SHADER(texture_color_shader);
 	GET_ATTRIB(texture_color_shader,aPosition);
 	GET_ATTRIB(texture_color_shader,aTexCoord);
@@ -128,15 +166,30 @@ void compile_texture_color_shader(){
 	GET_UNIFORM(texture_color_shader,uTex);
 }
 
-void texture_color_shader_prep_buffer(){
+void gpu_mesh_from_texture_color_verts(GPUMesh *m, TextureColorVertex *verts, int count){
+	glGenVertexArrays(1,&m->vao);
+	glBindVertexArray(m->vao);
+	glGenBuffers(1,&m->vbo);
+	glBindBuffer(GL_ARRAY_BUFFER,m->vbo);
+	glBufferData(GL_ARRAY_BUFFER,count*sizeof(*verts),verts,GL_STATIC_DRAW);
 	glEnableVertexAttribArray(texture_color_shader.aPosition);
 	glEnableVertexAttribArray(texture_color_shader.aTexCoord);
 	glEnableVertexAttribArray(texture_color_shader.aColor);
 	glVertexAttribPointer(texture_color_shader.aPosition,3,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),0);
 	glVertexAttribPointer(texture_color_shader.aTexCoord,2,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,u));
 	glVertexAttribPointer(texture_color_shader.aColor,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,color));
+	m->vertex_count = count;
+}
+
+void delete_gpu_mesh(GPUMesh *m){
+	glDeleteBuffers(1,&m->vbo);
+	glDeleteVertexArrays(1,&m->vao);
+	m->vao = 0;
+	m->vbo = 0;
+	m->vertex_count = 0;
 }
 
 void compile_shaders(){
+	compile_color_shader();
 	compile_texture_color_shader();
 }

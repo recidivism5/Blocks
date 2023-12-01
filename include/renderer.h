@@ -25,16 +25,33 @@ void check_program(char *name, char *status_name, GLuint id, GLenum param);
 GLuint compile_shader(char *name, char *vert_src, char *frag_src);
 
 typedef struct {
+	GLuint vao, vbo;
+	int vertex_count;
+} GPUMesh;
+
+typedef struct {
+	float x,y,z;
+	uint32_t color;
+} ColorVertex;
+
+struct ColorShader {
+	char *vert_src;
+	char *frag_src;
+	GLuint id;
+	GLint aPosition;
+	GLint aColor;
+	GLint uMVP;
+} color_shader;
+
+typedef struct {
 	float x,y,z, u,v;
 	uint32_t color;
 } TextureColorVertex;
 
 typedef struct {
-	size_t total, used;
+	int total, used;
 	TextureColorVertex *elements;
 } TextureColorVertexList;
-
-TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, size_t count);
 
 struct TextureColorShader {
 	char *vert_src;
@@ -47,12 +64,12 @@ struct TextureColorShader {
 	GLint uTex;
 } texture_color_shader;
 
-#define COMPILE_SHADER(s) s.id = compile_shader(#s,s.vert_src,s.frag_src)
-#define GET_ATTRIB(s,a) s.a = glGetAttribLocation(s.id,#a)
-#define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
+TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list, int count);
 
-void compile_texture_color_shader();
+void gpu_mesh_from_color_verts(GPUMesh *m, ColorVertex *verts, int count);
 
-void texture_color_shader_prep_buffer();
+void gpu_mesh_from_texture_color_verts(GPUMesh *m, TextureColorVertex *verts, int count);
+
+void delete_gpu_mesh(GPUMesh *m);
 
 void compile_shaders();

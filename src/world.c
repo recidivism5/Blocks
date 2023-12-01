@@ -187,6 +187,23 @@ vec3 cube_verts[] = {
 	0,1,1, 0,0,1, 1,0,1, 1,0,1, 1,1,1, 0,1,1,
 };
 
+vec3 block_outline[] = {
+	0,1,0, 0,0,0,
+	0,0,0, 0,0,1,
+	0,0,1, 0,1,1,
+	0,1,1, 0,1,0,
+
+	1,1,0, 1,0,0,
+	1,0,0, 1,0,1,
+	1,0,1, 1,1,1,
+	1,1,1, 1,1,0,
+
+	0,1,0, 1,1,0,
+	0,0,0, 1,0,0,
+	0,0,1, 1,0,1,
+	0,1,1, 1,1,1,
+};
+
 float ambient_light_coefficients[6] = {0.6f,0.6f,0.5f,1.0f,0.8f,0.8f};
 
 void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt){
@@ -273,19 +290,12 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 			}
 		}
 	}
-	c->vertex_count = tvl.used;
+	if (c->mesh.vertex_count){
+		delete_gpu_mesh(&c->mesh);
+	}
 	if (tvl.used){
-		if (!c->vbo_id){
-			glGenBuffers(1,&c->vbo_id);
-		}
-		glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
-		glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
+		gpu_mesh_from_texture_color_verts(&c->mesh,tvl.elements,tvl.used);
 		free(tvl.elements);
-	} else {
-		if (c->vbo_id){
-			glDeleteBuffers(1,&c->vbo_id);
-			c->vbo_id = 0;
-		}
 	}
 }
 
@@ -301,3 +311,73 @@ Block *get_block(World *w, int x, int y, int z){
 	}
 }
 
+Block *block_raycast(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal){
+	block_pos[0] = floorf(origin[0]);
+	block_pos[1] = floorf(origin[1]);
+	block_pos[2] = floorf(origin[2]);
+	vec3 da;
+	for (int i = 0; i < 3; i++){
+		if (ray[i] < 0){
+			da[i] = ((float)block_pos[i]-origin[i]) / ray[i];
+		} else {
+			da[i] = ((float)block_pos[i]+1.0f-origin[i]) / ray[i];	
+		}
+	}
+	*t = 0;
+	int index = 0;
+	while (*t <= 1.0f){
+		Block *b = get_block(w,block_pos[0],block_pos[1],block_pos[2]);
+		if (b && b->id){
+			glm_ivec3_zero(face_normal);
+			face_normal[index] = ray[index] < 0 ? 1 : -1;
+			return b;
+		}
+		float d = HUGE_VALF;
+		index = 0;
+		for (int i = 0; i < 3; i++){
+			if (da[i] < d){
+				index = i;
+				d = da[i];
+			}
+		}
+		block_pos[index] += ray[index] < 0 ? -1 : 1;
+		*t += da[index];
+		glm_vec3_subs(da,d,da);
+		da[index] = fabsf(1.0f / ray[index]);
+	}
+	return 0;
+}
+
+/*u8 raycast(FVec3 origin, FVec3 direction, float *vScale, IVec3 *blockPos, IVec3 *face){
+	IVec3 gp = {floorf(origin.x),floorf(origin.y),floorf(origin.z)};
+	FVec3 da;
+	FOR(i,3){
+		if (direction.arr[i] >= 0) da.arr[i] = ((float)gp.arr[i]+1.0f-origin.arr[i]) / direction.arr[i];
+		else da.arr[i] = ((float)gp.arr[i]-origin.arr[i]) / direction.arr[i];
+	}
+	*vScale = 0;
+	int index = 0;
+	while (*vScale < 1){
+		u8 b;
+		Chunk *c;
+		if ((b = getBlock(gp.x,gp.y,gp.z,&c).id) && c){
+			*blockPos = gp;
+			*face = (IVec3){0,0,0};
+			face->arr[index] = direction.arr[index] < 0 ? 1 : -1;
+			return b;
+		}
+		float d = HUGE_VAL;
+		index = 0;
+		FOR(i,3){
+			if (da.arr[i] < d){
+				index = i;
+				d = da.arr[i];
+			}
+		}
+		gp.arr[index] += direction.arr[index] < 0 ? -1 : 1;
+		*vScale += da.arr[index];
+		FOR(i,3) da.arr[i] -= d;
+		da.arr[index] = fabsf(1.0f/direction.arr[index]);
+	}
+	return AIR;
+}*/

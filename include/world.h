@@ -29,8 +29,7 @@ typedef struct {
 typedef struct {
 	bool neighbors_exist[4];
 	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
-	GLuint vbo_id;
-	int vertex_count;
+	GPUMesh mesh;
 } Chunk;
 
 typedef struct ChunkLinkedHashListBucket {
@@ -79,3 +78,5 @@ typedef struct {
 } World;
 
 Block *get_block(World *w, int x, int y, int z);
+
+Block *block_raycast(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal);
