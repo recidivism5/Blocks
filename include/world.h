@@ -4,6 +4,7 @@
 #include <tinydir.h>
 
 #include <renderer.h>
+#include <perlin_noise.h>
 
 typedef struct {
 	char *name;
@@ -55,7 +56,7 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 
 #define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
 
-void gen_chunk(Chunk *c);
+void gen_chunk(ChunkLinkedHashListBucket *b);
 
 vec3 cube_verts[];
 

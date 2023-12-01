@@ -91,11 +91,18 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 	return b;
 }
 
-void gen_chunk(Chunk *c){
-	int h = rand_int(CHUNK_HEIGHT/8);
+void gen_chunk(ChunkLinkedHashListBucket *b){
+	Chunk *c = b->chunk;
+	float height_map[CHUNK_WIDTH*CHUNK_WIDTH];
+	for (int z = 0; z < CHUNK_WIDTH; z++){
+		for (int x = 0; x < CHUNK_WIDTH; x++){
+			height_map[z*CHUNK_WIDTH+x] = (CHUNK_HEIGHT-1)*(0.3f+0.8f*perlin_noise_2d(0.01f*(b->position[0]*CHUNK_WIDTH+x),0.01f*(b->position[1]*CHUNK_WIDTH+z)));
+		}
+	}
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
+				int h = height_map[z*CHUNK_WIDTH+x];
 				if (y < h){
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
 				} else if (y == h){
@@ -200,14 +207,19 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 			}
 		}
 	}
-	if (tvl.elements){
+	c->vertex_count = tvl.used;
+	if (tvl.used){
 		if (!c->vbo_id){
 			glGenBuffers(1,&c->vbo_id);
 		}
 		glBindBuffer(GL_ARRAY_BUFFER,c->vbo_id);
 		glBufferData(GL_ARRAY_BUFFER,tvl.used*sizeof(*tvl.elements),tvl.elements,GL_STATIC_DRAW);
-		c->vertex_count = tvl.used;
 		free(tvl.elements);
+	} else {
+		if (c->vbo_id){
+			glDeleteBuffers(1,&c->vbo_id);
+			c->vbo_id = 0;
+		}
 	}
 }
 
@@ -222,3 +234,4 @@ Block *get_block(World *w, int x, int y, int z){
 		return 0;
 	}
 }
+

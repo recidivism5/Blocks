@@ -42,11 +42,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 				case GLFW_KEY_SPACE: keys.jump = true; break;
 				case GLFW_KEY_LEFT_CONTROL: keys.crouch = true; break;
 				case GLFW_KEY_F:{
-					if (move_state == MOVE_STATE_NORMAL){
-						move_state = MOVE_STATE_FLY;
-					} else {
-						move_state = MOVE_STATE_NORMAL;
-					}
+					move_state = (move_state + 1) % MOVE_STATE_COUNT;
 					break;
 				}
 			}
@@ -275,7 +271,7 @@ void main(void)
 				} else {
 					b->chunk = zalloc_or_die(sizeof(Chunk));
 				}
-				gen_chunk(b->chunk);
+				gen_chunk(b);
 				mesh_chunk(&world.chunks,b);
 				new_chunks++;
 				if (new_chunks >= max_new_chunks_per_frame) break;
@@ -300,27 +296,29 @@ void main(void)
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D,block_atlas.id);
 		for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
-			mat4 inv_crot;
-			glm_mat4_transpose_to(crot,inv_crot);
-			mat4 view;
-			vec3 trans = {
-				b->position[0] * CHUNK_WIDTH,
-				0,
-				b->position[1] * CHUNK_WIDTH
-			};
-			vec3 player_head;
-			get_player_head_position(&player,player_head);
-			glm_vec3_sub(trans,player_head,trans);
-			glm_translate_make(view,trans);
-			glm_mat4_mul(inv_crot,view,view);
-			mat4 persp;
-			glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
-			mat4 mvp;
-			glm_mat4_mul(persp,view,mvp);
-			glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-			glBindBuffer(GL_ARRAY_BUFFER,b->chunk->vbo_id);
-			texture_color_shader_prep_buffer();
-			glDrawArrays(GL_TRIANGLES,0,b->chunk->vertex_count);
+			if (b->chunk->vertex_count){
+				mat4 inv_crot;
+				glm_mat4_transpose_to(crot,inv_crot);
+				mat4 view;
+				vec3 trans = {
+					b->position[0] * CHUNK_WIDTH,
+					0,
+					b->position[1] * CHUNK_WIDTH
+				};
+				vec3 player_head;
+				get_player_head_position(&player,player_head);
+				glm_vec3_sub(trans,player_head,trans);
+				glm_translate_make(view,trans);
+				glm_mat4_mul(inv_crot,view,view);
+				mat4 persp;
+				glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
+				mat4 mvp;
+				glm_mat4_mul(persp,view,mvp);
+				glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
+				glBindBuffer(GL_ARRAY_BUFFER,b->chunk->vbo_id);
+				texture_color_shader_prep_buffer();
+				glDrawArrays(GL_TRIANGLES,0,b->chunk->vertex_count);
+			}
 		}
 
 		glCheckError();
