@@ -25,7 +25,9 @@ struct {
 		backward,
 		forward,
 		jump,
-		crouch;
+		crouch,
+		attack,
+		interact;
 } keys;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
 	switch (action){
@@ -61,6 +63,26 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		}
 	}
 }
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods){
+	switch (action){
+		case GLFW_PRESS:{
+			switch (button){
+				case GLFW_MOUSE_BUTTON_LEFT: keys.attack = true; break;
+				case GLFW_MOUSE_BUTTON_RIGHT: keys.interact = true; break;
+			}
+			break;
+		}
+		case GLFW_RELEASE:{
+			switch (button){
+				case GLFW_MOUSE_BUTTON_LEFT: keys.attack = false; break;
+				case GLFW_MOUSE_BUTTON_RIGHT: keys.interact = false; break;
+			}
+			break;
+		}
+	}
+}
+
 void clamp_euler(vec3 e){
 	float fp = 4*M_PI;
 	for (int i = 0; i < 3; i++){
@@ -166,6 +188,7 @@ void main(void)
 	}
 	glfwSetCursorPos(window, 0, 0);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetKeyCallback(window, key_callback);
  
 	glfwMakeContextCurrent(window);
@@ -259,6 +282,33 @@ void main(void)
 			}
 		}
 
+		vec3 player_head;
+		get_player_head_position(&player,player_head);
+		mat4 persp;
+		glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
+		vec3 player_look;
+		glm_vec3_negate_to(c_backward,player_look);
+		glm_vec3_scale(player_look,5.0f,player_look);
+		float t;
+		ivec3 block_pos;
+		ivec3 face_normal;
+		Block *target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+		static float block_break_place_cooldown = 0.0f;
+		if (block_break_place_cooldown > 0.0f) block_break_place_cooldown -= dt;
+		if (target_block && block_break_place_cooldown <= 0.0f){
+			if (keys.attack){
+				set_block(&world,block_pos,BLOCK_AIR);
+				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+				block_break_place_cooldown = 0.5f;
+			} else if (keys.interact){
+				ivec3 new_block_pos;
+				glm_ivec3_add(block_pos,face_normal,new_block_pos);
+				set_block(&world,new_block_pos,BLOCK_BRICK);
+				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+				block_break_place_cooldown = 0.5f;
+			}
+		}
+
 		ivec2 chunk_pos;
 		world_pos_to_chunk_pos(player.aabb.position,chunk_pos);
 		ManhattanSpiralGenerator msg;
@@ -286,11 +336,6 @@ void main(void)
 			}
 			manhattan_spiral_generator_get_next_position(&msg);
 		}
-
-		vec3 player_head;
-		get_player_head_position(&player,player_head);
-		mat4 persp;
-		glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
  
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 		glViewport(0, 0, width, height);
@@ -325,14 +370,7 @@ void main(void)
 			}
 		}
 
-		vec3 player_look;
-		glm_vec3_negate_to(c_backward,player_look);
-		glm_vec3_scale(player_look,5.0f,player_look);
-		float t;
-		ivec3 block_pos;
-		ivec3 face_normal;
-		Block *b = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
-		if (b){
+		if (target_block){
 			glUseProgram(color_shader.id);
 			mat4 mvp;
 			float padding = 0.0125f;

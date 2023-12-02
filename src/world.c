@@ -17,6 +17,8 @@ BlockType block_types[] = {
 	{"stone",{{1,0},{1,0},{1,0},{1,0},{1,0},{1,0}}},
 	{"dirt",{{0,3},{0,3},{0,3},{0,3},{0,3},{0,3}}},
 	{"grass",{{0,2},{0,2},{0,3},{0,1},{0,2},{0,2}}},
+	{"log",{{1,3},{1,3},{1,2},{1,2},{1,3},{1,3}}},
+	{"brick",{{10,0},{10,0},{10,0},{10,0},{10,0},{10,0}}},
 };
 
 ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position){
@@ -304,13 +306,40 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 	}
 }
 
-Block *get_block(World *w, int x, int y, int z){
-	if (y < 0 || y > (CHUNK_HEIGHT-1)){
+Block *get_block(World *w, ivec3 pos){
+	if (pos[1] < 0 || pos[1] > (CHUNK_HEIGHT-1)){
 		return 0;
 	}
-	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(x+(x<0))/CHUNK_WIDTH-(x<0),(z+(z<0))/CHUNK_WIDTH-(z<0)});
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(pos[0]+(pos[0]<0))/CHUNK_WIDTH-(pos[0]<0),(pos[2]+(pos[2]<0))/CHUNK_WIDTH-(pos[2]<0)});
 	if (b){
-		return b->chunk->blocks + BLOCK_AT(modulo(x,CHUNK_WIDTH),y,modulo(z,CHUNK_WIDTH));
+		return b->chunk->blocks + BLOCK_AT(modulo(pos[0],CHUNK_WIDTH),pos[1],modulo(pos[2],CHUNK_WIDTH));
+	} else {
+		return 0;
+	}
+}
+
+bool set_block(World *w, ivec3 pos, int id){
+	if (pos[1] < 0 || pos[1] > (CHUNK_HEIGHT-1)){
+		return false;
+	}
+	int cx = (pos[0]+(pos[0]<0))/CHUNK_WIDTH-(pos[0]<0);
+	int cz = (pos[2]+(pos[2]<0))/CHUNK_WIDTH-(pos[2]<0);
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz});
+	if (b){
+		Block *block = b->chunk->blocks + BLOCK_AT(modulo(pos[0],CHUNK_WIDTH),pos[1],modulo(pos[2],CHUNK_WIDTH));
+		block->id = id;
+		mesh_chunk(&w->chunks,b);
+		ChunkLinkedHashListBucket *neighbors[] = {
+			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx-1,cz}),
+			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx+1,cz}),
+			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz-1}),
+			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz+1}),
+		};
+		for (int i = 0; i < 4; i++){
+			if (neighbors[i]){
+				mesh_chunk(&w->chunks,neighbors[i]);
+			}
+		}
 	} else {
 		return 0;
 	}
@@ -331,7 +360,7 @@ Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 blo
 	*t = 0;
 	int index = 0;
 	while (*t <= 1.0f){
-		Block *b = get_block(w,block_pos[0],block_pos[1],block_pos[2]);
+		Block *b = get_block(w,block_pos);
 		if (b && b->id){
 			glm_ivec3_zero(face_normal);
 			face_normal[index] = ray[index] < 0 ? 1 : -1;

@@ -18,7 +18,9 @@ typedef enum {
 	BLOCK_BEDROCK,
 	BLOCK_STONE,
 	BLOCK_DIRT,
-	BLOCK_GRASS
+	BLOCK_GRASS,
+	BLOCK_LOG,
+	BLOCK_BRICK,
 } BlockId;
 
 #define CHUNK_WIDTH 16
@@ -81,6 +83,8 @@ typedef struct {
 	ChunkLinkedHashList chunks;
 } World;
 
-Block *get_block(World *w, int x, int y, int z);
+Block *get_block(World *w, ivec3 pos);
+
+bool set_block(World *w, ivec3 pos, int id);
 
 Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal);

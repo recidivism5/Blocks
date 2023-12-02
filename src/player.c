@@ -54,7 +54,7 @@ void move_aabb(World *w, AABB *a, double dt){
 	for (int y = block_min[1]; y <= block_max[1]; y++){
 		for (int z = block_min[2]; z <= block_max[2]; z++){
 			for (int x = block_min[0]; x <= block_max[0]; x++){
-				Block *b = get_block(w,x,y,z);
+				Block *b = get_block(w,(ivec3){x,y,z});
 				if (b && b->id){
 					MMBB *bm = MMBBListMakeRoom(&mbl,1);
 					bm->min[0] = x;
