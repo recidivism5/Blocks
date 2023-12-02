@@ -87,7 +87,7 @@ GLuint compile_shader(char *name, char *vert_src, char *frag_src){
 #define GET_UNIFORM(s,u) s.u = glGetUniformLocation(s.id,#u)
 
 struct ColorShader color_shader = {
-	"#version 110\n"
+	"#version 330\n"
 	"attribute vec3 aPosition;\n"
 	"attribute vec4 aColor;\n"
 	"uniform mat4 uMVP;\n"
@@ -97,7 +97,7 @@ struct ColorShader color_shader = {
 	"	vColor = aColor;\n"
 	"}",
 
-	"#version 110\n"
+	"#version 330\n"
 	"varying vec4 vColor;\n"
 	"void main(){\n"
 	"	gl_FragColor = vColor;\n"
@@ -135,7 +135,7 @@ TextureColorVertex *TextureColorVertexListMakeRoom(TextureColorVertexList *list,
 }
 
 struct TextureColorShader texture_color_shader = {
-	"#version 110\n"
+	"#version 330\n"
 	"attribute vec3 aPosition;\n"
 	"attribute vec2 aTexCoord;\n"
 	"attribute vec4 aColor;\n"
@@ -148,12 +148,14 @@ struct TextureColorShader texture_color_shader = {
 	"	vColor = aColor;\n"
 	"}",
 
-	"#version 110\n"
+	"#version 330\n"
 	"uniform sampler2D uTex;\n"
 	"varying vec2 vTexCoord;\n"
 	"varying vec4 vColor;\n"
 	"void main(){\n"
-	"	gl_FragColor = texture2D(uTex,vTexCoord) * vColor;\n"
+	"	vec4 sample = texture2D(uTex,vTexCoord);\n"
+	"	if (sample.a < 0.5) discard;\n"
+	"	gl_FragColor = sample * vColor;\n"
 	"}"
 };
 

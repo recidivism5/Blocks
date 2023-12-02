@@ -2,22 +2,22 @@
 
 #include <world.h>
 
-typedef struct {
+TSTRUCT(AABB){
 	vec3 half_extents;
 	vec3 position;
 	vec3 velocity;
 	bool on_ground;
-} AABB;
+};
 
-typedef struct {
+TSTRUCT(MMBB){
 	vec3 min;
 	vec3 max;
-} MMBB;
+};
 
-typedef struct {
+TSTRUCT(MMBBList){
 	size_t total, used;
 	MMBB *elements;
-} MMBBList;
+};
 
 MMBB *MMBBListMakeRoom(MMBBList *list, size_t count);
 
@@ -27,10 +27,10 @@ void expand_mmbb(MMBB *m, vec3 v);
 
 void mmbb_get_center(MMBB *m, vec3 c);
 
-typedef struct {
+TSTRUCT(Player){
 	AABB aabb;
 	vec3 head_euler;
-} Player;
+};
 
 void init_player(Player *p, vec3 position, vec3 head_euler);
 

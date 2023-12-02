@@ -6,10 +6,11 @@
 #include <renderer.h>
 #include <perlin_noise.h>
 
-typedef struct {
+TSTRUCT(BlockType){
 	char *name;
+	bool transparent;
 	int faces[6][2];
-} BlockType;
+};
 
 BlockType block_types[];
 
@@ -20,30 +21,31 @@ typedef enum {
 	BLOCK_DIRT,
 	BLOCK_GRASS,
 	BLOCK_LOG,
+	BLOCK_GLASS,
 	BLOCK_BRICK,
 } BlockId;
 
 #define CHUNK_WIDTH 16
 #define CHUNK_HEIGHT 256
-typedef struct {
+TSTRUCT(Block){
 	uint8_t id, r, g, b;
-} Block;
-typedef struct {
+};
+TSTRUCT(Chunk){
 	bool neighbors_exist[4];
 	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
 	GPUMesh mesh;
-} Chunk;
+};
 
-typedef struct ChunkLinkedHashListBucket {
-	struct ChunkLinkedHashListBucket *prev, *next;
+TSTRUCT(ChunkLinkedHashListBucket){
+	ChunkLinkedHashListBucket *prev, *next;
 	ivec2 position;
 	Chunk *chunk;
-} ChunkLinkedHashListBucket;
+};
 
-typedef struct {
+TSTRUCT(ChunkLinkedHashList){
 	size_t total, used, tombstones;
 	ChunkLinkedHashListBucket *buckets, *first, *last;
-} ChunkLinkedHashList;
+};
 
 #define TOMBSTONE UINTPTR_MAX
 
@@ -69,7 +71,7 @@ void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int fac
 
 void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b);
 
-typedef struct {
+TSTRUCT(Region){
 	FILE *file_ptr;
 	struct {
 		int sector_number;
@@ -77,11 +79,11 @@ typedef struct {
 	} chunk_positions[32*32];
 	int sector_count;
 	bool *sector_usage;
-} Region;
+};
 
-typedef struct {
+TSTRUCT(World){
 	ChunkLinkedHashList chunks;
-} World;
+};
 
 Block *get_block(World *w, ivec3 pos);
 

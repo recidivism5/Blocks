@@ -12,13 +12,14 @@ https://wiki.vg/Map_Format
 */
 
 BlockType block_types[] = {
-	{"air",{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
-	{"bedrock",{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
-	{"stone",{{1,0},{1,0},{1,0},{1,0},{1,0},{1,0}}},
-	{"dirt",{{0,3},{0,3},{0,3},{0,3},{0,3},{0,3}}},
-	{"grass",{{0,2},{0,2},{0,3},{0,1},{0,2},{0,2}}},
-	{"log",{{1,3},{1,3},{1,2},{1,2},{1,3},{1,3}}},
-	{"brick",{{10,0},{10,0},{10,0},{10,0},{10,0},{10,0}}},
+	{"air",true,{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
+	{"bedrock",false,{{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}}},
+	{"stone",false,{{1,0},{1,0},{1,0},{1,0},{1,0},{1,0}}},
+	{"dirt",false,{{0,3},{0,3},{0,3},{0,3},{0,3},{0,3}}},
+	{"grass",false,{{0,2},{0,2},{0,3},{0,1},{0,2},{0,2}}},
+	{"log",false,{{1,3},{1,3},{1,2},{1,2},{1,3},{1,3}}},
+	{"glass",true,{{8,0},{8,0},{8,0},{8,0},{8,0},{8,0}}},
+	{"brick",false,{{10,0},{10,0},{10,0},{10,0},{10,0},{10,0}}},
 };
 
 ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position){
@@ -275,22 +276,22 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 				BlockId id = c->blocks[BLOCK_AT(x,y,z)].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if ((x == 0 && neighbors[0] && !neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,y,z)].id) || (x > 0 && !c->blocks[BLOCK_AT(x-1,y,z)].id)){
+					if ((x == 0 && neighbors[0] && block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,y,z)].id].transparent) || (x > 0 && block_types[c->blocks[BLOCK_AT(x-1,y,z)].id].transparent)){
 						append_block_face(&tvl,x,y,z,0,bt);
 					}
-					if ((x == (CHUNK_WIDTH-1) && neighbors[1] && !neighbors[1]->blocks[BLOCK_AT(0,y,z)].id) || (x < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x+1,y,z)].id)){
+					if ((x == (CHUNK_WIDTH-1) && neighbors[1] && block_types[neighbors[1]->blocks[BLOCK_AT(0,y,z)].id].transparent) || (x < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(x+1,y,z)].id].transparent)){
 						append_block_face(&tvl,x,y,z,1,bt);
 					}
-					if (y == 0 || !c->blocks[BLOCK_AT(x,y-1,z)].id){
+					if (y == 0 || block_types[c->blocks[BLOCK_AT(x,y-1,z)].id].transparent){
 						append_block_face(&tvl,x,y,z,2,bt);
 					}
-					if (y == (CHUNK_HEIGHT-1) || !c->blocks[BLOCK_AT(x,y+1,z)].id){
+					if (y == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(x,y+1,z)].id].transparent){
 						append_block_face(&tvl,x,y,z,3,bt);
 					}
-					if ((z == 0 && neighbors[2] && !neighbors[2]->blocks[BLOCK_AT(x,y,CHUNK_WIDTH-1)].id) || (z > 0 && !c->blocks[BLOCK_AT(x,y,z-1)].id)){
+					if ((z == 0 && neighbors[2] && block_types[neighbors[2]->blocks[BLOCK_AT(x,y,CHUNK_WIDTH-1)].id].transparent) || (z > 0 && block_types[c->blocks[BLOCK_AT(x,y,z-1)].id].transparent)){
 						append_block_face(&tvl,x,y,z,4,bt);
 					}
-					if ((z == (CHUNK_WIDTH-1) && neighbors[3] && !neighbors[3]->blocks[BLOCK_AT(x,y,0)].id) || (z < (CHUNK_WIDTH-1) && !c->blocks[BLOCK_AT(x,y,z+1)].id)){
+					if ((z == (CHUNK_WIDTH-1) && neighbors[3] && block_types[neighbors[3]->blocks[BLOCK_AT(x,y,0)].id].transparent) || (z < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(x,y,z+1)].id].transparent)){
 						append_block_face(&tvl,x,y,z,5,bt);
 					}
 				}

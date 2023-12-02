@@ -11,10 +11,10 @@
 GLenum glCheckError_(const char *file, int line);
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
 
-typedef struct {
+TSTRUCT(Texture){
 	GLuint id;
 	int width, height;
-} Texture;
+};
 
 void texture_from_file(Texture *t, char *path);
 
@@ -24,17 +24,17 @@ void check_program(char *name, char *status_name, GLuint id, GLenum param);
 
 GLuint compile_shader(char *name, char *vert_src, char *frag_src);
 
-typedef struct {
+TSTRUCT(GPUMesh){
 	GLuint vao, vbo;
 	int vertex_count;
-} GPUMesh;
+};
 
-typedef struct {
+TSTRUCT(ColorVertex){
 	float x,y,z;
 	uint32_t color;
-} ColorVertex;
+};
 
-struct ColorShader {
+TSTRUCT(ColorShader){
 	char *vert_src;
 	char *frag_src;
 	GLuint id;
@@ -43,17 +43,17 @@ struct ColorShader {
 	GLint uMVP;
 } color_shader;
 
-typedef struct {
+TSTRUCT(TextureColorVertex){
 	float x,y,z, u,v;
 	uint32_t color;
-} TextureColorVertex;
+};
 
-typedef struct {
+TSTRUCT(TextureColorVertexList){
 	int total, used;
 	TextureColorVertex *elements;
-} TextureColorVertexList;
+};
 
-struct TextureColorShader {
+TSTRUCT(TextureColorShader){
 	char *vert_src;
 	char *frag_src;
 	GLuint id;
