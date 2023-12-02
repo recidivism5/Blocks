@@ -27,7 +27,9 @@ struct {
 		jump,
 		crouch,
 		attack,
-		interact;
+		just_attacked,
+		interact,
+		just_interacted;
 } keys;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
 	switch (action){
@@ -68,7 +70,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	switch (action){
 		case GLFW_PRESS:{
 			switch (button){
-				case GLFW_MOUSE_BUTTON_LEFT: keys.attack = true; break;
+				case GLFW_MOUSE_BUTTON_LEFT: keys.attack = true; keys.just_attacked = true; break;
 				case GLFW_MOUSE_BUTTON_RIGHT: keys.interact = true; break;
 			}
 			break;
@@ -76,7 +78,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		case GLFW_RELEASE:{
 			switch (button){
 				case GLFW_MOUSE_BUTTON_LEFT: keys.attack = false; break;
-				case GLFW_MOUSE_BUTTON_RIGHT: keys.interact = false; break;
+				case GLFW_MOUSE_BUTTON_RIGHT: keys.interact = false; keys.just_interacted = true; break;
 			}
 			break;
 		}
@@ -293,19 +295,17 @@ void main(void)
 		ivec3 block_pos;
 		ivec3 face_normal;
 		Block *target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
-		static float block_break_place_cooldown = 0.0f;
-		if (block_break_place_cooldown > 0.0f) block_break_place_cooldown -= dt;
-		if (target_block && block_break_place_cooldown <= 0.0f){
-			if (keys.attack){
+		if (target_block){
+			if (keys.just_attacked){
 				set_block(&world,block_pos,BLOCK_AIR);
 				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
-				block_break_place_cooldown = 0.5f;
-			} else if (keys.interact){
+				keys.just_attacked = false;
+			} else if (keys.just_interacted){
 				ivec3 new_block_pos;
 				glm_ivec3_add(block_pos,face_normal,new_block_pos);
 				set_block(&world,new_block_pos,BLOCK_BRICK);
 				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
-				block_break_place_cooldown = 0.5f;
+				keys.just_interacted = false;
 			}
 		}
 
