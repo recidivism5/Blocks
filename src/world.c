@@ -300,60 +300,31 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 				BlockId id = c->blocks[BLOCK_AT(bp[0],bp[1],bp[2])].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if (bt->transparent){
-						if ((bp[0] == 0 && neighbors[0] &&
-							block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
-							(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
-							append_block_face(&c->transparent_verts,bp,0,bt);
-						}
-						if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
-							block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
-							(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
-							append_block_face(&c->transparent_verts,bp,1,bt);
-						}
-						if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
-							append_block_face(&c->transparent_verts,bp,2,bt);
-						}
-						if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
-							append_block_face(&c->transparent_verts,bp,3,bt);
-						}
-						if ((bp[2] == 0 && neighbors[2] &&
-							block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
-							(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
-							append_block_face(&c->transparent_verts,bp,4,bt);
-						}
-						if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
-							&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
-							(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
-							append_block_face(&c->transparent_verts,bp,5,bt);
-						}
-					} else {
-						if ((bp[0] == 0 && neighbors[0] &&
-							block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
-							(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
-							append_block_face(&opaque_vl,bp,0,bt);
-						}
-						if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
-							block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
-							(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
-							append_block_face(&opaque_vl,bp,1,bt);
-						}
-						if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
-							append_block_face(&opaque_vl,bp,2,bt);
-						}
-						if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
-							append_block_face(&opaque_vl,bp,3,bt);
-						}
-						if ((bp[2] == 0 && neighbors[2] &&
-							block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
-							(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
-							append_block_face(&opaque_vl,bp,4,bt);
-						}
-						if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
-							&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
-							(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
-							append_block_face(&opaque_vl,bp,5,bt);
-						}
+					if ((bp[0] == 0 && neighbors[0] &&
+						block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
+						(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,bt);
+					}
+					if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
+						block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
+						(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,bt);
+					}
+					if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,2,bt);
+					}
+					if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,3,bt);
+					}
+					if ((bp[2] == 0 && neighbors[2] &&
+						block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
+						(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,bt);
+					}
+					if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
+						&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
+						(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,bt);
 					}
 				}
 			}
