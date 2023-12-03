@@ -175,19 +175,17 @@ int compare_chunk_linked_hash_list_bucket_distance(ChunkLinkedHashListBucketDist
 }
 
 vec3 player_head;
+ivec2 chunk_pos_for_triangle_sort;
 int compare_triangle_distance_from_player_head(TextureColorVertex *a, TextureColorVertex *b){
-	float ad = HUGE_VALF;
-	float bd = HUGE_VALF;
-	for (int i = 0; i < 3; i++){
-		float d = glm_vec3_distance2(player_head,a[i].position);
-		if (d < ad){
-			ad = d;
-		}
-		d = glm_vec3_distance2(player_head,b[i].position);
-		if (d < bd){
-			bd = d;
-		}
-	}
+	vec3 cpos = {chunk_pos_for_triangle_sort[0]*CHUNK_WIDTH,0,chunk_pos_for_triangle_sort[1]*CHUNK_WIDTH};
+	vec3 a_midpoint;
+	glm_vec3_lerp(a[0].position,a[2].position,0.5f,a_midpoint);//midpoint of quad
+	vec3 b_midpoint;
+	glm_vec3_lerp(b[0].position,b[2].position,0.5f,b_midpoint);//midpoint of quad
+	glm_vec3_add(cpos,a_midpoint,a_midpoint);
+	glm_vec3_add(cpos,b_midpoint,b_midpoint);
+	float ad = glm_vec3_distance2(player_head,a_midpoint);
+	float bd = glm_vec3_distance2(player_head,b_midpoint);
 	return COMPARE(bd,ad);
 }
 
@@ -403,6 +401,7 @@ void main(void)
 						//upload to gpu using gpu_mesh_from_texture_color_verts
 						//render
 						//delete gpu mesh
+						glm_ivec2_copy(b->position,chunk_pos_for_triangle_sort);
 						qsort(b->chunk->transparent_verts.elements,b->chunk->transparent_verts.used/3,3*sizeof(*b->chunk->transparent_verts.elements),compare_triangle_distance_from_player_head);
 						GPUMesh m;
 						gpu_mesh_from_texture_color_verts(&m,b->chunk->transparent_verts.elements,b->chunk->transparent_verts.used);
