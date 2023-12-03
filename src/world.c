@@ -19,6 +19,9 @@ BlockType block_types[] = {
 	{"grass",false,{{0,2},{0,2},{0,3},{0,1},{0,2},{0,2}}},
 	{"log",false,{{1,3},{1,3},{1,2},{1,2},{1,3},{1,3}}},
 	{"glass",true,{{8,0},{8,0},{8,0},{8,0},{8,0},{8,0}}},
+	{"red_glass",true,{{8,1},{8,1},{8,1},{8,1},{8,1},{8,1}}},
+	{"green_glass",true,{{8,2},{8,2},{8,2},{8,2},{8,2},{8,2}}},
+	{"blue_glass",true,{{8,3},{8,3},{8,3},{8,3},{8,3},{8,3}}},
 	{"brick",false,{{10,0},{10,0},{10,0},{10,0},{10,0},{10,0}}},
 };
 
@@ -214,40 +217,55 @@ void init_block_outline(){
 
 float ambient_light_coefficients[6] = {0.6f,0.6f,0.5f,1.0f,0.8f,0.8f};
 
-void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt){
+float light_coefficients[16];
+
+void init_light_coefficients(){
+	for (int i = 0; i < COUNT(light_coefficients); i++){
+		float a = i/15.0f;
+		light_coefficients[i] = a / ((1-a) * 3 + 1);
+	}
+}
+
+void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, BlockType *bt){
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
 	uint8_t ambient = ambient_light_coefficients[face_id] * 255;
 	uint32_t color = RGBA(ambient,ambient,ambient,255);
 	for (int i = 0; i < 6; i++){
-		v[i].x = x + cube_verts[face_id*6+i][0];
-		v[i].y = y + cube_verts[face_id*6+i][1];
-		v[i].z = z + cube_verts[face_id*6+i][2];
-
+		glm_vec3_add((vec3){pos[0],pos[1],pos[2]},cube_verts[face_id*6+i],v[i].position);
 		uint8_t ambient = ambient_light_coefficients[face_id] * 255;
 		v[i].color = color;
 	}
 	float w = 1.0f/16.0f;
 
-	v[0].u = w*bt->faces[face_id][0];
-	v[0].v = w*(16-bt->faces[face_id][1]);
+	v[0].texcoord[0] = w*bt->faces[face_id][0];
+	v[0].texcoord[1] = w*(16-bt->faces[face_id][1]);
 
-	v[1].u = v[0].u;
-	v[1].v = v[0].v - w;
+	v[1].texcoord[0] = v[0].texcoord[0];
+	v[1].texcoord[1] = v[0].texcoord[1] - w;
 
-	v[2].u = v[0].u + w;
-	v[2].v = v[1].v;
+	v[2].texcoord[0] = v[0].texcoord[0] + w;
+	v[2].texcoord[1] = v[1].texcoord[1];
 
-	v[3].u = v[2].u;
-	v[3].v = v[2].v;
+	v[3].texcoord[0] = v[2].texcoord[0];
+	v[3].texcoord[1] = v[2].texcoord[1];
 
-	v[4].u = v[2].u;
-	v[4].v = v[0].v;
+	v[4].texcoord[0] = v[2].texcoord[0];
+	v[4].texcoord[1] = v[0].texcoord[1];
 
-	v[5].u = v[0].u;
-	v[5].v = v[0].v;
+	v[5].texcoord[0] = v[0].texcoord[0];
+	v[5].texcoord[1] = v[0].texcoord[1];
 }
 
 void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
+	/*
+	Lighting:
+	Max range of a single skylight is a chunk height column expanded out by 15 in all directions.
+	Aka a CHUNK_HEIGHT * 31 * 31 volume.
+	Rounding up, a CHUNK_HEIGHT * 32 * 32 length ring buffer is plenty for light propagation.
+	You could potentially keep an MMBB for your lighting update and only remesh intersecting chunks.
+	Propagate skylight, then propagate neighbor walls.
+	static BlockPositionPair bpp_ring_buffer[CHUNK_HEIGHT*32*32]; //actual capacity = CHUNK_HEIGHT*32*32 - 1
+	*/
 	Chunk *c = b->chunk;
 	ChunkLinkedHashListBucket *neighbor_buckets[4] = {
 		ChunkLinkedHashListGetChecked(list,(ivec2){b->position[0]-1,b->position[1]}),
@@ -269,42 +287,92 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(list,neighbor_buckets[1]);
 	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(list,neighbor_buckets[2]);
 	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(list,neighbor_buckets[3]);
-	TextureColorVertexList tvl = {0};
-	for (int y = 0; y < CHUNK_HEIGHT; y++){
-		for (int z = 0; z < CHUNK_WIDTH; z++){
-			for (int x = 0; x < CHUNK_WIDTH; x++){
-				BlockId id = c->blocks[BLOCK_AT(x,y,z)].id;
+
+	if (c->transparent_verts.used){
+		free(c->transparent_verts.elements);
+		memset(&c->transparent_verts,0,sizeof(c->transparent_verts));
+	}
+	TextureColorVertexList opaque_vl = {0};
+	ivec3 bp;
+	for (bp[1] = 0; bp[1] < CHUNK_HEIGHT; bp[1]++){
+		for (bp[2] = 0; bp[2] < CHUNK_WIDTH; bp[2]++){
+			for (bp[0] = 0; bp[0] < CHUNK_WIDTH; bp[0]++){
+				BlockId id = c->blocks[BLOCK_AT(bp[0],bp[1],bp[2])].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if ((x == 0 && neighbors[0] && block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,y,z)].id].transparent) || (x > 0 && block_types[c->blocks[BLOCK_AT(x-1,y,z)].id].transparent)){
-						append_block_face(&tvl,x,y,z,0,bt);
-					}
-					if ((x == (CHUNK_WIDTH-1) && neighbors[1] && block_types[neighbors[1]->blocks[BLOCK_AT(0,y,z)].id].transparent) || (x < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(x+1,y,z)].id].transparent)){
-						append_block_face(&tvl,x,y,z,1,bt);
-					}
-					if (y == 0 || block_types[c->blocks[BLOCK_AT(x,y-1,z)].id].transparent){
-						append_block_face(&tvl,x,y,z,2,bt);
-					}
-					if (y == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(x,y+1,z)].id].transparent){
-						append_block_face(&tvl,x,y,z,3,bt);
-					}
-					if ((z == 0 && neighbors[2] && block_types[neighbors[2]->blocks[BLOCK_AT(x,y,CHUNK_WIDTH-1)].id].transparent) || (z > 0 && block_types[c->blocks[BLOCK_AT(x,y,z-1)].id].transparent)){
-						append_block_face(&tvl,x,y,z,4,bt);
-					}
-					if ((z == (CHUNK_WIDTH-1) && neighbors[3] && block_types[neighbors[3]->blocks[BLOCK_AT(x,y,0)].id].transparent) || (z < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(x,y,z+1)].id].transparent)){
-						append_block_face(&tvl,x,y,z,5,bt);
+					if (bt->transparent){
+						if ((bp[0] == 0 && neighbors[0] &&
+							block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
+							(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
+							append_block_face(&c->transparent_verts,bp,0,bt);
+						}
+						if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
+							block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
+							(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
+							append_block_face(&c->transparent_verts,bp,1,bt);
+						}
+						if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
+							append_block_face(&c->transparent_verts,bp,2,bt);
+						}
+						if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
+							append_block_face(&c->transparent_verts,bp,3,bt);
+						}
+						if ((bp[2] == 0 && neighbors[2] &&
+							block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
+							(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
+							append_block_face(&c->transparent_verts,bp,4,bt);
+						}
+						if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
+							&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
+							(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
+							append_block_face(&c->transparent_verts,bp,5,bt);
+						}
+					} else {
+						if ((bp[0] == 0 && neighbors[0] &&
+							block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
+							(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
+							append_block_face(&opaque_vl,bp,0,bt);
+						}
+						if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
+							block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
+							(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
+							append_block_face(&opaque_vl,bp,1,bt);
+						}
+						if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
+							append_block_face(&opaque_vl,bp,2,bt);
+						}
+						if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
+							append_block_face(&opaque_vl,bp,3,bt);
+						}
+						if ((bp[2] == 0 && neighbors[2] &&
+							block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
+							(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
+							append_block_face(&opaque_vl,bp,4,bt);
+						}
+						if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
+							&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
+							(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
+							append_block_face(&opaque_vl,bp,5,bt);
+						}
 					}
 				}
 			}
 		}
 	}
-	if (c->mesh.vertex_count){
-		delete_gpu_mesh(&c->mesh);
+	if (c->opaque_verts.vertex_count){
+		delete_gpu_mesh(&c->opaque_verts);
 	}
-	if (tvl.used){
-		gpu_mesh_from_texture_color_verts(&c->mesh,tvl.elements,tvl.used);
-		free(tvl.elements);
+	if (opaque_vl.used){
+		gpu_mesh_from_texture_color_verts(&c->opaque_verts,opaque_vl.elements,opaque_vl.used);
+		free(opaque_vl.elements);
 	}
+}
+
+void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos){
+	int i = world_pos[0];
+	int k = world_pos[2];
+	chunk_pos[0] = (world_pos[0] < 0 ? -1 : 0) + i/CHUNK_WIDTH;
+	chunk_pos[1] = (world_pos[2] < 0 ? -1 : 0) + k/CHUNK_WIDTH;
 }
 
 Block *get_block(World *w, ivec3 pos){
@@ -346,26 +414,26 @@ bool set_block(World *w, ivec3 pos, int id){
 	}
 }
 
-Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal){
-	block_pos[0] = floorf(origin[0]);
-	block_pos[1] = floorf(origin[1]);
-	block_pos[2] = floorf(origin[2]);
+void cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, BlockRayCastResult *result){
+	result->block_pos[0] = floorf(origin[0]);
+	result->block_pos[1] = floorf(origin[1]);
+	result->block_pos[2] = floorf(origin[2]);
 	vec3 da;
 	for (int i = 0; i < 3; i++){
 		if (ray[i] < 0){
-			da[i] = ((float)block_pos[i]-origin[i]) / ray[i];
+			da[i] = ((float)result->block_pos[i]-origin[i]) / ray[i];
 		} else {
-			da[i] = ((float)block_pos[i]+1.0f-origin[i]) / ray[i];	
+			da[i] = ((float)result->block_pos[i]+1.0f-origin[i]) / ray[i];	
 		}
 	}
-	*t = 0;
+	result->t = 0;
 	int index = 0;
-	while (*t <= 1.0f){
-		Block *b = get_block(w,block_pos);
-		if (b && b->id){
-			glm_ivec3_zero(face_normal);
-			face_normal[index] = ray[index] < 0 ? 1 : -1;
-			return b;
+	while (result->t <= 1.0f){
+		result->block = get_block(w,result->block_pos);
+		if (result->block && result->block->id){
+			glm_ivec3_zero(result->face_normal);
+			result->face_normal[index] = ray[index] < 0 ? 1 : -1;
+			return;
 		}
 		float d = HUGE_VALF;
 		index = 0;
@@ -375,10 +443,10 @@ Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 blo
 				d = da[i];
 			}
 		}
-		block_pos[index] += ray[index] < 0 ? -1 : 1;
-		*t += da[index];
+		result->block_pos[index] += ray[index] < 0 ? -1 : 1;
+		result->t += da[index];
 		glm_vec3_subs(da,d,da);
 		da[index] = fabsf(1.0f / ray[index]);
 	}
-	return 0;
+	result->block = 0;
 }

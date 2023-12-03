@@ -22,18 +22,29 @@ typedef enum {
 	BLOCK_GRASS,
 	BLOCK_LOG,
 	BLOCK_GLASS,
+	BLOCK_RED_GLASS,
+	BLOCK_GREEN_GLASS,
+	BLOCK_BLUE_GLASS,
 	BLOCK_BRICK,
 } BlockId;
 
 #define CHUNK_WIDTH 16
 #define CHUNK_HEIGHT 256
+
 TSTRUCT(Block){
 	uint8_t id, r, g, b;
 };
+
+TSTRUCT(BlockPositionPair){
+	Block *block;
+	ivec3 position;
+};
+
 TSTRUCT(Chunk){
 	bool neighbors_exist[4];
 	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
-	GPUMesh mesh;
+	TextureColorVertexList transparent_verts;
+	GPUMesh opaque_verts;
 };
 
 TSTRUCT(ChunkLinkedHashListBucket){
@@ -67,7 +78,9 @@ extern GPUMesh block_outline;
 
 void init_block_outline();
 
-void append_block_face(TextureColorVertexList *tvl, int x, int y, int z, int face_id, BlockType *bt);
+void init_light_coefficients();
+
+void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, BlockType *bt);
 
 void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b);
 
@@ -85,8 +98,17 @@ TSTRUCT(World){
 	ChunkLinkedHashList chunks;
 };
 
+void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos);
+
 Block *get_block(World *w, ivec3 pos);
 
 bool set_block(World *w, ivec3 pos, int id);
 
-Block *cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, float *t, ivec3 block_pos, ivec3 face_normal);
+TSTRUCT(BlockRayCastResult){
+	Block *block;
+	ivec3 block_pos;
+	ivec3 face_normal;
+	float t;
+};
+
+void cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, BlockRayCastResult *result);

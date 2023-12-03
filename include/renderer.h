@@ -30,7 +30,7 @@ TSTRUCT(GPUMesh){
 };
 
 TSTRUCT(ColorVertex){
-	float x,y,z;
+	vec3 position;
 	uint32_t color;
 };
 
@@ -44,7 +44,8 @@ TSTRUCT(ColorShader){
 } color_shader;
 
 TSTRUCT(TextureColorVertex){
-	float x,y,z, u,v;
+	vec3 position;
+	vec2 texcoord;
 	uint32_t color;
 };
 

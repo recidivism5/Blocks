@@ -48,7 +48,7 @@ void move_aabb(World *w, AABB *a, double dt){
 	ivec3 block_min, block_max;
 	for (int i = 0; i < 3; i++){
 		block_min[i] = floorf(exp_m.min[i]);
-		block_max[i] = floorf(exp_m.max[i]+1.0f);
+		block_max[i] = floorf(exp_m.max[i]);
 	}
 	MMBBList mbl = {0};
 	for (int y = block_min[1]; y <= block_max[1]; y++){

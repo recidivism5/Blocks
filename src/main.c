@@ -124,13 +124,6 @@ GLFWwindow *create_centered_window(int width, int height, char *title){
 	return window;
 }
 
-void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos){
-	int i = floorf(world_pos[0]);
-	int k = floorf(world_pos[2]);
-	chunk_pos[0] = (i < 0 ? -1 : 0) + i/CHUNK_WIDTH;
-	chunk_pos[1] = (k < 0 ? -1 : 0) + k/CHUNK_WIDTH;
-}
-
 int manhattan_distance_2d(ivec2 a, ivec2 b){
 	return abs(a[0]-b[0]) + abs(a[1]-b[1]);
 }
@@ -181,6 +174,23 @@ int compare_chunk_linked_hash_list_bucket_distance(ChunkLinkedHashListBucketDist
 	return b->distance - a->distance;
 }
 
+vec3 player_head;
+int compare_triangle_distance_from_player_head(TextureColorVertex *a, TextureColorVertex *b){
+	float ad = HUGE_VALF;
+	float bd = HUGE_VALF;
+	for (int i = 0; i < 3; i++){
+		float d = glm_vec3_distance2(player_head,a[i].position);
+		if (d < ad){
+			ad = d;
+		}
+		d = glm_vec3_distance2(player_head,b[i].position);
+		if (d < bd){
+			bd = d;
+		}
+	}
+	return COMPARE(bd,ad);
+}
+
 void main(void)
 {
 	glfwSetErrorCallback(error_callback);
@@ -214,6 +224,8 @@ void main(void)
 	init_player(&player,(vec3){8,80,8},(vec3){0,0,0});
 
 	init_block_outline();
+
+	init_light_coefficients();
 
 	double t0 = glfwGetTime();
  
@@ -293,27 +305,24 @@ void main(void)
 			}
 		}
 
-		vec3 player_head;
 		get_player_head_position(&player,player_head);
 		mat4 persp;
 		glm_perspective(0.5f*M_PI,(float)width/(float)height,0.01f,1000.0f,persp);
 		vec3 player_look;
 		glm_vec3_negate_to(c_backward,player_look);
 		glm_vec3_scale(player_look,5.0f,player_look);
-		float t;
-		ivec3 block_pos;
-		ivec3 face_normal;
-		Block *target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
-		if (target_block){
+		BlockRayCastResult rcr;
+		cast_ray_into_blocks(&world,player_head,player_look,&rcr);
+		if (rcr.block){
 			if (keys.just_attacked){
-				set_block(&world,block_pos,BLOCK_AIR);
-				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+				set_block(&world,rcr.block_pos,BLOCK_AIR);
+				cast_ray_into_blocks(&world,player_head,player_look,&rcr);
 				keys.just_attacked = false;
 			} else if (keys.just_interacted){
 				ivec3 new_block_pos;
-				glm_ivec3_add(block_pos,face_normal,new_block_pos);
-				set_block(&world,new_block_pos,BLOCK_GLASS);
-				target_block = cast_ray_into_blocks(&world,player_head,player_look,&t,block_pos,face_normal);
+				glm_ivec3_add(rcr.block_pos,rcr.face_normal,new_block_pos);
+				set_block(&world,new_block_pos,BLOCK_RED_GLASS);
+				cast_ray_into_blocks(&world,player_head,player_look,&rcr);
 				keys.just_interacted = false;
 			}
 		}
@@ -352,74 +361,70 @@ void main(void)
 
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_CULL_FACE);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
 		if (world.chunks.used){
 			glUseProgram(texture_color_shader.id);
 			glUniform1i(texture_color_shader.uTex,0);
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D,block_atlas.id);
-			bool sort_chunks = false;
-			if (sort_chunks){
-				ChunkLinkedHashListBucketDistance *sorted_chunk_buckets = malloc_or_die(world.chunks.used * sizeof(*sorted_chunk_buckets));
-				int i = 0;
-				for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
-					sorted_chunk_buckets[i].bucket = b;
-					sorted_chunk_buckets[i].distance = manhattan_distance_2d(b->position,chunk_pos);
-					i++;
-				}
-				qsort(sorted_chunk_buckets,world.chunks.used,sizeof(*sorted_chunk_buckets),compare_chunk_linked_hash_list_bucket_distance);
-				for (i = 0; i < world.chunks.used; i++){
-					ChunkLinkedHashListBucket *b = sorted_chunk_buckets[i].bucket;
-					if (b->chunk->mesh.vertex_count){
-						mat4 view;
-						vec3 trans = {
-							b->position[0] * CHUNK_WIDTH,
-							0,
-							b->position[1] * CHUNK_WIDTH
-						};
-						glm_vec3_sub(trans,player_head,trans);
-						glm_translate_make(view,trans);
-						glm_mat4_mul(inv_crot,view,view);
+			ChunkLinkedHashListBucketDistance *sorted_chunk_buckets = malloc_or_die(world.chunks.used * sizeof(*sorted_chunk_buckets));
+			int i = 0;
+			for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
+				sorted_chunk_buckets[i].bucket = b;
+				sorted_chunk_buckets[i].distance = manhattan_distance_2d(b->position,chunk_pos);
+				i++;
+			}
+			qsort(sorted_chunk_buckets,world.chunks.used,sizeof(*sorted_chunk_buckets),compare_chunk_linked_hash_list_bucket_distance);
+			for (i = 0; i < world.chunks.used; i++){
+				ChunkLinkedHashListBucket *b = sorted_chunk_buckets[i].bucket;
+				if (b->chunk->opaque_verts.vertex_count || b->chunk->transparent_verts.used){
+					mat4 view;
+					vec3 trans = {
+						b->position[0] * CHUNK_WIDTH,
+						0,
+						b->position[1] * CHUNK_WIDTH
+					};
+					glm_vec3_sub(trans,player_head,trans);
+					glm_translate_make(view,trans);
+					glm_mat4_mul(inv_crot,view,view);
+					mat4 mvp;
+					glm_mat4_mul(persp,view,mvp);
+					glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
 
-						mat4 mvp;
-						glm_mat4_mul(persp,view,mvp);
-						glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-						glBindVertexArray(b->chunk->mesh.vao);
-						glDrawArrays(GL_TRIANGLES,0,b->chunk->mesh.vertex_count);
+					if (b->chunk->opaque_verts.vertex_count){
+						glBindVertexArray(b->chunk->opaque_verts.vao);
+						glDrawArrays(GL_TRIANGLES,0,b->chunk->opaque_verts.vertex_count);
 					}
-				}
-				free(sorted_chunk_buckets);
-			} else {
-				for (ChunkLinkedHashListBucket *b = world.chunks.first; b; b = b->next){
-					if (b->chunk->mesh.vertex_count){
-						mat4 view;
-						vec3 trans = {
-							b->position[0] * CHUNK_WIDTH,
-							0,
-							b->position[1] * CHUNK_WIDTH
-						};
-						glm_vec3_sub(trans,player_head,trans);
-						glm_translate_make(view,trans);
-						glm_mat4_mul(inv_crot,view,view);
 
-						mat4 mvp;
-						glm_mat4_mul(persp,view,mvp);
-						glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-						glBindVertexArray(b->chunk->mesh.vao);
-						glDrawArrays(GL_TRIANGLES,0,b->chunk->mesh.vertex_count);
+					if (b->chunk->transparent_verts.used){
+						//sort transparent triangles by distance from player_head
+						//upload to gpu using gpu_mesh_from_texture_color_verts
+						//render
+						//delete gpu mesh
+						qsort(b->chunk->transparent_verts.elements,b->chunk->transparent_verts.used/3,3*sizeof(*b->chunk->transparent_verts.elements),compare_triangle_distance_from_player_head);
+						GPUMesh m;
+						gpu_mesh_from_texture_color_verts(&m,b->chunk->transparent_verts.elements,b->chunk->transparent_verts.used);
+
+						glBindVertexArray(m.vao);
+						glDrawArrays(GL_TRIANGLES,0,m.vertex_count);
+
+						delete_gpu_mesh(&m);
 					}
 				}
 			}
+			free(sorted_chunk_buckets);
 		}
 
-		if (target_block){
+		if (rcr.block){
 			glUseProgram(color_shader.id);
 			mat4 mvp;
 			float padding = 0.0125f;
 			vec3 trans = {
-				block_pos[0]-player_head[0]-padding/2,
-				block_pos[1]-player_head[1]-padding/2,
-				block_pos[2]-player_head[2]-padding/2,
+				rcr.block_pos[0]-player_head[0]-padding/2,
+				rcr.block_pos[1]-player_head[1]-padding/2,
+				rcr.block_pos[2]-player_head[2]-padding/2,
 			};
 			glm_translate_make(mvp,trans);
 			mvp[0][0] = 1.0f + padding;

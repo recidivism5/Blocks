@@ -154,7 +154,6 @@ struct TextureColorShader texture_color_shader = {
 	"varying vec4 vColor;\n"
 	"void main(){\n"
 	"	vec4 sample = texture2D(uTex,vTexCoord);\n"
-	"	if (sample.a < 0.5) discard;\n"
 	"	gl_FragColor = sample * vColor;\n"
 	"}"
 };
@@ -178,7 +177,7 @@ void gpu_mesh_from_texture_color_verts(GPUMesh *m, TextureColorVertex *verts, in
 	glEnableVertexAttribArray(texture_color_shader.aTexCoord);
 	glEnableVertexAttribArray(texture_color_shader.aColor);
 	glVertexAttribPointer(texture_color_shader.aPosition,3,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),0);
-	glVertexAttribPointer(texture_color_shader.aTexCoord,2,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,u));
+	glVertexAttribPointer(texture_color_shader.aTexCoord,2,GL_FLOAT,GL_FALSE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,texcoord));
 	glVertexAttribPointer(texture_color_shader.aColor,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(TextureColorVertex),offsetof(TextureColorVertex,color));
 	m->vertex_count = count;
 }
