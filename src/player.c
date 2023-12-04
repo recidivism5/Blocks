@@ -1,33 +1,5 @@
 #include <player.h>
 
-MMBB *MMBBListMakeRoom(MMBBList *list, size_t count){
-	if (list->used+count > list->total){
-		if (!list->total) list->total = 1;
-		while (list->used+count > list->total) list->total *= 2;
-		list->elements = realloc_or_die(list->elements,list->total*sizeof(*list->elements));
-	}
-	list->used += count;
-	return list->elements+list->used-count;
-}
-
-void aabb_to_mmbb(AABB *a, MMBB *m){
-	glm_vec3_sub(a->position,a->half_extents,m->min);
-	glm_vec3_add(a->position,a->half_extents,m->max);
-}
-
-void expand_mmbb(MMBB *m, vec3 v){
-	for (int i = 0; i < 3; i++){
-		if (v[i] < 0) m->min[i] += v[i];
-		else m->max[i] += v[i];
-	}
-}
-
-void mmbb_get_center(MMBB *m, vec3 c){
-	for (int i = 0; i < 3; i++){
-		c[i] = m->min[i] + 0.5f*(m->max[i]-m->min[i]);
-	}
-}
-
 void init_player(Player *p, vec3 position, vec3 head_euler){
 	p->aabb.half_extents[0] = 0.25f;
 	p->aabb.half_extents[1] = 0.9f;
@@ -36,7 +8,7 @@ void init_player(Player *p, vec3 position, vec3 head_euler){
 	glm_vec3_copy(head_euler,p->head_euler);
 }
 
-void move_aabb(World *w, AABB *a, double dt){
+void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 	vec3 d;
 	glm_vec3_scale(a->velocity,dt,d);
 	vec3 d_initial;
@@ -54,7 +26,7 @@ void move_aabb(World *w, AABB *a, double dt){
 	for (int y = block_min[1]; y <= block_max[1]; y++){
 		for (int z = block_min[2]; z <= block_max[2]; z++){
 			for (int x = block_min[0]; x <= block_max[0]; x++){
-				Block *b = get_block(w,(ivec3){x,y,z});
+				Block *b = get_block(chunks,(ivec3){x,y,z});
 				if (b && b->id){
 					MMBB *bm = MMBBListMakeRoom(&mbl,1);
 					bm->min[0] = x;

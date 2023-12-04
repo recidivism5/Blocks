@@ -55,10 +55,10 @@ void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBuc
 }
 
 ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ivec2 position){
-	if ((list->used+list->tombstones+1) > (list->total*3)/4){
+	if ((list->used+list->tombstones+1) > (list->total*3)/4){ // 3/4 load limit, see benchmark/HashTableBenchmarkResults.txt
 		ChunkLinkedHashList newList;
-		newList.total = 8;
-		while (newList.total < (list->used*2)) newList.total *= 2; //make a new list with at least twice as many elements as list->used.
+		newList.total = 16; // same as used resize factor
+		while (newList.total < (list->used*16)) newList.total *= 2; // 16x used resize, see benchmark/HashTableBenchmarkResults.txt
 		newList.used = list->used;
 		newList.tombstones = 0;
 		newList.first = 0;
@@ -128,7 +128,7 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 #define DENSITYMAP_HEIGHT (CHUNK_HEIGHT+1)
 #define DENSITY_AT(x,y,z) ((y)*DENSITYMAP_WIDTH*DENSITYMAP_WIDTH + (z)*DENSITYMAP_WIDTH + (x))
 	static float density_map[DENSITYMAP_WIDTH*DENSITYMAP_WIDTH*DENSITYMAP_HEIGHT];
-	for (int y = 0; y < DENSITYMAP_HEIGHT; y+=4){
+	for (int y = 0; y < DENSITYMAP_HEIGHT; y+=8){
 		for (int z = 0; z < DENSITYMAP_WIDTH; z+=4){
 			for (int x = 0; x < DENSITYMAP_WIDTH; x+=4){
 				density_map[DENSITY_AT(x,y,z)] = fractal_perlin_noise_3d(cbase[0]+x,y,cbase[1]+z,0.005f,8) + 1.4f*(height_map[HEIGHT_AT(x,z)]-(float)y/CHUNK_HEIGHT);
@@ -138,11 +138,11 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				int min[3] = {(x/4)*4,(y/4)*4,(z/4)*4};
-				int max[3] = {min[0]+4,min[1]+4,min[2]+4};
+				int min[3] = {(x/4)*4,(y/8)*8,(z/4)*4};
+				int max[3] = {min[0]+4,min[1]+8,min[2]+4};
 				float t[3] = {
 					(float)(x%4)/4.0f,
-					(float)(y%4)/4.0f,
+					(float)(y%8)/8.0f,
 					(float)(z%4)/4.0f
 				};
 				density_map[DENSITY_AT(x,y,z)] =
@@ -226,10 +226,24 @@ void init_light_coefficients(){
 	}
 }
 
-void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, BlockType *bt){
+void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Block *neighbor, BlockType *bt){
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
-	uint8_t ambient = ambient_light_coefficients[face_id] * 255;
-	uint32_t color = RGBA(ambient,ambient,ambient,255);
+	float ambient = ambient_light_coefficients[face_id];
+	uint32_t color;
+	if (neighbor){
+		uint8_t *c = &color;
+		c[0] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[0]),BLOCKLIGHT(neighbor->light[0]))]);
+		c[1] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[1]),BLOCKLIGHT(neighbor->light[1]))]);
+		c[2] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[2]),BLOCKLIGHT(neighbor->light[2]))]);
+		c[3] = 255;
+	} else {
+		color = RGBA(
+			(int)(255*ambient),
+			(int)(255*ambient),
+			(int)(255*ambient),
+			255
+		);
+	}
 	for (int i = 0; i < 6; i++){
 		glm_vec3_add((vec3){pos[0],pos[1],pos[2]},cube_verts[face_id*6+i],v[i].position);
 		uint8_t ambient = ambient_light_coefficients[face_id] * 255;
@@ -256,7 +270,67 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 	v[5].texcoord[1] = v[0].texcoord[1];
 }
 
-void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
+void propagate_light(ChunkLinkedHashList *chunks, BlockPositionPair *bp, IMMBB *bounds){
+	static BlockPositionPair bpp_ring_buffer[CHUNK_HEIGHT*32*32]; //actual capacity = CHUNK_HEIGHT*32*32 - 1
+	bpp_ring_buffer[0] = *bp;
+	int write_index = 1;
+	int read_index = 0;
+	while (read_index != write_index){
+		bp = bpp_ring_buffer+read_index;
+		read_index = (read_index + 1) % COUNT(bpp_ring_buffer);
+		Block *b = bp->block;
+		ivec3 skylight, blocklight;
+		for (int i = 0; i < 3; i++){
+			skylight[i] = SKYLIGHT(b->light[i]);
+			blocklight[i] = BLOCKLIGHT(b->light[i]);
+		}
+		ivec3 neighbor_positions[] = {
+			{bp->position[0]-1,bp->position[1],bp->position[2]},
+			{bp->position[0]+1,bp->position[1],bp->position[2]},
+			{bp->position[0],bp->position[1]-1,bp->position[2]},
+			{bp->position[0],bp->position[1]+1,bp->position[2]},
+			{bp->position[0],bp->position[1],bp->position[2]-1},
+			{bp->position[0],bp->position[1],bp->position[2]+1},
+		};
+		for (ivec3 *np = neighbor_positions; np < neighbor_positions+COUNT(neighbor_positions); np++){
+			Block *n = get_block(chunks,*np);
+			if (n && block_types[n->id].transparent){
+				ivec3 nskylight, nblocklight;
+				for (int i = 0; i < 3; i++){
+					nskylight[i] = SKYLIGHT(n->light[i]);
+					nblocklight[i] = BLOCKLIGHT(n->light[i]);
+				}
+				bool replace = false;
+				for (int i = 0; i < 3; i++){
+					if ((*np)[1] == bp->position[1] && nskylight[i] < skylight[i]){
+						nskylight[i] = skylight[i];
+						replace = true;
+					} else if (nskylight[i] < skylight[i]-1){
+						nskylight[i] = skylight[i]-1;
+						replace = true;
+					}
+					if (nblocklight[i] < blocklight[i]-1){
+						nblocklight[i] = blocklight[i]-1;
+						replace = true;
+					}
+				}
+				if (replace){
+					for (int i = 0; i < 3; i++){
+						n->light[i] = (nskylight[i]<<8) | nblocklight[i];
+					}
+					if ((write_index + 1) % COUNT(bpp_ring_buffer) == read_index){
+						fatal_error("propagate_light overflowed ring buffer");
+					}
+					bpp_ring_buffer[write_index].block = n;
+					glm_ivec3_copy(*np,bpp_ring_buffer[write_index].position);
+					write_index = (write_index + 1) % COUNT(bpp_ring_buffer);
+				}
+			}
+		}
+	}
+}
+
+void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 	/*
 	Lighting:
 	Max range of a single skylight is a chunk height column expanded out by 15 in all directions.
@@ -265,13 +339,37 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 	You could potentially keep an MMBB for your lighting update and only remesh intersecting chunks.
 	Propagate skylight, then propagate neighbor walls.
 	static BlockPositionPair bpp_ring_buffer[CHUNK_HEIGHT*32*32]; //actual capacity = CHUNK_HEIGHT*32*32 - 1
+
+	benchmark:
+	meshing:
+		do each edge, excluding corners
+		do each corner
+		do middle
+
+		vs current method
 	*/
-	Chunk *c = b->chunk;
+	Chunk *c = bucket->chunk;
+	IMMBB light_bounds;
+	ivec3 bp;
+	for (bp[2] = 0; bp[2] < CHUNK_WIDTH; bp[2]++){
+		for (bp[0] = 0; bp[0] < CHUNK_WIDTH; bp[0]++){
+			for (bp[1] = CHUNK_HEIGHT-1; bp[1] >= 0; bp[1]--){
+				Block *block = c->blocks + BLOCK_AT(bp[0],bp[1],bp[2]);
+				if (!block_types[block->id].transparent){
+					break;
+				}
+				block->light[0] = 0xf0;
+				block->light[1] = 0xf0;
+				block->light[2] = 0xf0;
+			}
+		}
+	}
+
 	ChunkLinkedHashListBucket *neighbor_buckets[4] = {
-		ChunkLinkedHashListGetChecked(list,(ivec2){b->position[0]-1,b->position[1]}),
-		ChunkLinkedHashListGetChecked(list,(ivec2){b->position[0]+1,b->position[1]}),
-		ChunkLinkedHashListGetChecked(list,(ivec2){b->position[0],b->position[1]-1}),
-		ChunkLinkedHashListGetChecked(list,(ivec2){b->position[0],b->position[1]+1})
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]-1,bucket->position[1]}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]+1,bucket->position[1]}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0],bucket->position[1]-1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0],bucket->position[1]+1})
 	};
 	Chunk *neighbors[4];
 	for (int i = 0; i < 4; i++){
@@ -283,48 +381,97 @@ void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b){
 			c->neighbors_exist[i] = false;
 		}
 	}
-	if (neighbors[0] && !neighbors[0]->neighbors_exist[1]) mesh_chunk(list,neighbor_buckets[0]);
-	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(list,neighbor_buckets[1]);
-	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(list,neighbor_buckets[2]);
-	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(list,neighbor_buckets[3]);
+	if (neighbors[0] && !neighbors[0]->neighbors_exist[1]) mesh_chunk(chunks,neighbor_buckets[0]);
+	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(chunks,neighbor_buckets[1]);
+	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(chunks,neighbor_buckets[2]);
+	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(chunks,neighbor_buckets[3]);
 
 	if (c->transparent_verts.used){
 		free(c->transparent_verts.elements);
 		memset(&c->transparent_verts,0,sizeof(c->transparent_verts));
 	}
 	TextureColorVertexList opaque_vl = {0};
-	ivec3 bp;
+
 	for (bp[1] = 0; bp[1] < CHUNK_HEIGHT; bp[1]++){
 		for (bp[2] = 0; bp[2] < CHUNK_WIDTH; bp[2]++){
 			for (bp[0] = 0; bp[0] < CHUNK_WIDTH; bp[0]++){
 				BlockId id = c->blocks[BLOCK_AT(bp[0],bp[1],bp[2])].id;
 				if (id){
 					BlockType *bt = block_types + id;
-					if ((bp[0] == 0 && neighbors[0] &&
-						block_types[neighbors[0]->blocks[BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2])].id].transparent) ||
-						(bp[0] > 0 && block_types[c->blocks[BLOCK_AT(bp[0]-1,bp[1],bp[2])].id].transparent)){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,bt);
+					Block *neighbor_block;
+
+					if (bp[0] == 0){
+						if (neighbors[0]){
+							neighbor_block = neighbors[0]->blocks+BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2]);
+							if (block_types[neighbor_block->id].transparent){
+								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
+							}
+						}
+					} else {
+						neighbor_block = c->blocks+BLOCK_AT(bp[0]-1,bp[1],bp[2]);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
+						}
 					}
-					if ((bp[0] == (CHUNK_WIDTH-1) && neighbors[1] &&
-						block_types[neighbors[1]->blocks[BLOCK_AT(0,bp[1],bp[2])].id].transparent) ||
-						(bp[0] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0]+1,bp[1],bp[2])].id].transparent)){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,bt);
+
+					if (bp[0] == (CHUNK_WIDTH-1)){
+						if (neighbors[1]){
+							neighbor_block = neighbors[1]->blocks+BLOCK_AT(0,bp[1],bp[2]);
+							if (block_types[neighbor_block->id].transparent){
+								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
+							}
+						}
+					} else {
+						neighbor_block = c->blocks+BLOCK_AT(bp[0]+1,bp[1],bp[2]);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
+						}
 					}
-					if (bp[1] == 0 || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]-1,bp[2])].id].transparent){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,2,bt);
+
+					if (bp[1] > 0){
+						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1]-1,bp[2]);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,2,neighbor_block,bt);
+						}
+					} else {
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,2,0,bt);
 					}
-					if (bp[1] == (CHUNK_HEIGHT-1) || block_types[c->blocks[BLOCK_AT(bp[0],bp[1]+1,bp[2])].id].transparent){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,3,bt);
+
+					if (bp[1] < (CHUNK_HEIGHT-1)){
+						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1]+1,bp[2]);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,3,neighbor_block,bt);
+						}
+					} else {
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,3,0,bt);
 					}
-					if ((bp[2] == 0 && neighbors[2] &&
-						block_types[neighbors[2]->blocks[BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1)].id].transparent) ||
-						(bp[2] > 0 && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]-1)].id].transparent)){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,bt);
+
+					if (bp[2] == 0){
+						if (neighbors[2]){
+							neighbor_block = neighbors[2]->blocks+BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1);
+							if (block_types[neighbor_block->id].transparent){
+								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
+							}
+						}
+					} else {
+						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1],bp[2]-1);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
+						}
 					}
-					if ((bp[2] == (CHUNK_WIDTH-1) && neighbors[3]
-						&& block_types[neighbors[3]->blocks[BLOCK_AT(bp[0],bp[1],0)].id].transparent) ||
-						(bp[2] < (CHUNK_WIDTH-1) && block_types[c->blocks[BLOCK_AT(bp[0],bp[1],bp[2]+1)].id].transparent)){
-						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,bt);
+
+					if (bp[2] == (CHUNK_WIDTH-1)){
+						if (neighbors[3]){
+							neighbor_block = neighbors[3]->blocks+BLOCK_AT(bp[0],bp[1],0);
+							if (block_types[neighbor_block->id].transparent){
+								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
+							}
+						}
+					} else {
+						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1],bp[2]+1);
+						if (block_types[neighbor_block->id].transparent){
+							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
+						}
 					}
 				}
 			}
@@ -346,11 +493,11 @@ void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos){
 	chunk_pos[1] = (world_pos[2] < 0 ? -1 : 0) + k/CHUNK_WIDTH;
 }
 
-Block *get_block(World *w, ivec3 pos){
+Block *get_block(ChunkLinkedHashList *chunks, ivec3 pos){
 	if (pos[1] < 0 || pos[1] > (CHUNK_HEIGHT-1)){
 		return 0;
 	}
-	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){(pos[0]+(pos[0]<0))/CHUNK_WIDTH-(pos[0]<0),(pos[2]+(pos[2]<0))/CHUNK_WIDTH-(pos[2]<0)});
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(chunks,(ivec2){(pos[0]+(pos[0]<0))/CHUNK_WIDTH-(pos[0]<0),(pos[2]+(pos[2]<0))/CHUNK_WIDTH-(pos[2]<0)});
 	if (b){
 		return b->chunk->blocks + BLOCK_AT(modulo(pos[0],CHUNK_WIDTH),pos[1],modulo(pos[2],CHUNK_WIDTH));
 	} else {
@@ -358,26 +505,26 @@ Block *get_block(World *w, ivec3 pos){
 	}
 }
 
-bool set_block(World *w, ivec3 pos, int id){
+bool set_block(ChunkLinkedHashList *chunks, ivec3 pos, int id){
 	if (pos[1] < 0 || pos[1] > (CHUNK_HEIGHT-1)){
 		return false;
 	}
 	int cx = (pos[0]+(pos[0]<0))/CHUNK_WIDTH-(pos[0]<0);
 	int cz = (pos[2]+(pos[2]<0))/CHUNK_WIDTH-(pos[2]<0);
-	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz});
+	ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(chunks,(ivec2){cx,cz});
 	if (b){
 		Block *block = b->chunk->blocks + BLOCK_AT(modulo(pos[0],CHUNK_WIDTH),pos[1],modulo(pos[2],CHUNK_WIDTH));
 		block->id = id;
-		mesh_chunk(&w->chunks,b);
+		mesh_chunk(chunks,b);
 		ChunkLinkedHashListBucket *neighbors[] = {
-			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx-1,cz}),
-			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx+1,cz}),
-			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz-1}),
-			ChunkLinkedHashListGetChecked(&w->chunks,(ivec2){cx,cz+1}),
+			ChunkLinkedHashListGetChecked(chunks,(ivec2){cx-1,cz}),
+			ChunkLinkedHashListGetChecked(chunks,(ivec2){cx+1,cz}),
+			ChunkLinkedHashListGetChecked(chunks,(ivec2){cx,cz-1}),
+			ChunkLinkedHashListGetChecked(chunks,(ivec2){cx,cz+1}),
 		};
 		for (int i = 0; i < 4; i++){
 			if (neighbors[i]){
-				mesh_chunk(&w->chunks,neighbors[i]);
+				mesh_chunk(chunks,neighbors[i]);
 			}
 		}
 	} else {
@@ -385,7 +532,7 @@ bool set_block(World *w, ivec3 pos, int id){
 	}
 }
 
-void cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, BlockRayCastResult *result){
+void cast_ray_into_blocks(ChunkLinkedHashList *chunks, vec3 origin, vec3 ray, BlockRayCastResult *result){
 	result->block_pos[0] = floorf(origin[0]);
 	result->block_pos[1] = floorf(origin[1]);
 	result->block_pos[2] = floorf(origin[2]);
@@ -400,7 +547,7 @@ void cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, BlockRayCastResult *r
 	result->t = 0;
 	int index = 0;
 	while (result->t <= 1.0f){
-		result->block = get_block(w,result->block_pos);
+		result->block = get_block(chunks,result->block_pos);
 		if (result->block && result->block->id){
 			glm_ivec3_zero(result->face_normal);
 			result->face_normal[index] = ray[index] < 0 ? 1 : -1;

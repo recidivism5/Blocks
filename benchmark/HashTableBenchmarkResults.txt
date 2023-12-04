@@ -1,0 +1,17 @@
+Time taken to insert, retrieve, delete, and add 1 million entries:
+Language|Nanoseconds|Load Limit|Used Resize|Hash Function|Memory Usage (MiB)
+    Java  1129766701
+  Python   941494300
+       C  4756102900        1/2          2x        fnv_1a                 61
+       C   836569400        3/4          2x        fnv_1a                 61
+       C   643655400        3/4          4x        fnv_1a                122
+       C   625182100        3/4          8x        fnv_1a                244
+       C   387333500        3/4         16x        cantor                488
+       C   382051000        3/4         16x        fnv_1a                488 <-- I pick this as the winner
+       C   333732300        3/4         32x        fnv_1a                977
+       C  1134439100        3/4         64x        fnv_1a                1953
+
+The Java and Python implementations were written by Bing chat, so tell me if you think they can be improved.
+
+1 million chunks is a really high number. In practice with 16 render distance, we only have 545 chunks loaded.
+With 16x used resize, that's a total of 16384 table cells, which is 0.5 MiB. Nothing!

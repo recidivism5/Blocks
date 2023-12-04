@@ -5,6 +5,7 @@
 
 #include <renderer.h>
 #include <perlin_noise.h>
+#include <aabb.h>
 
 TSTRUCT(BlockType){
 	char *name;
@@ -32,8 +33,11 @@ typedef enum {
 #define CHUNK_HEIGHT 256
 
 TSTRUCT(Block){
-	uint8_t id, r, g, b;
+	uint8_t id, light[3];
 };
+
+#define SKYLIGHT(v) ((v)>>4)
+#define BLOCKLIGHT(v) ((v)&0x0f)
 
 TSTRUCT(BlockPositionPair){
 	Block *block;
@@ -80,7 +84,7 @@ void init_block_outline();
 
 void init_light_coefficients();
 
-void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, BlockType *bt);
+void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Block *neighbor, BlockType *bt);
 
 void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b);
 
@@ -100,9 +104,9 @@ TSTRUCT(World){
 
 void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos);
 
-Block *get_block(World *w, ivec3 pos);
+Block *get_block(ChunkLinkedHashList *chunks, ivec3 pos);
 
-bool set_block(World *w, ivec3 pos, int id);
+bool set_block(ChunkLinkedHashList *chunks, ivec3 pos, int id);
 
 TSTRUCT(BlockRayCastResult){
 	Block *block;
@@ -111,4 +115,4 @@ TSTRUCT(BlockRayCastResult){
 	float t;
 };
 
-void cast_ray_into_blocks(World *w, vec3 origin, vec3 ray, BlockRayCastResult *result);
+void cast_ray_into_blocks(ChunkLinkedHashList *chunks, vec3 origin, vec3 ray, BlockRayCastResult *result);

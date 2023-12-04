@@ -49,6 +49,21 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 					move_state = (move_state + 1) % MOVE_STATE_COUNT;
 					break;
 				}
+				case GLFW_KEY_R:{
+					static int prev_width, prev_height;
+					static bool fullscreen = false;
+					GLFWmonitor *primary = glfwGetPrimaryMonitor();
+					GLFWvidmode *vm = glfwGetVideoMode(primary);
+					if (!fullscreen){
+						glfwGetFramebufferSize(window,&prev_width,&prev_height);
+						glfwSetWindowMonitor(window,primary,0,0,vm->width,vm->height,GLFW_DONT_CARE);
+						fullscreen = true;
+					} else {
+						glfwSetWindowMonitor(window,0,(vm->width-prev_width)/2,(vm->height-prev_height)/2,prev_width,prev_height,GLFW_DONT_CARE);
+						fullscreen = false;
+					}
+					break;
+				}
 			}
 			break;
 		}
@@ -287,7 +302,7 @@ void main(void)
 					player.aabb.velocity[1] = 10.0f;
 				}
 				player.aabb.velocity[1] -= 32.0f * dt;
-				move_aabb(&world,&player.aabb,dt);
+				move_aabb_against_chunks(&world.chunks,&player.aabb,dt);
 				break;
 			}
 			case MOVE_STATE_FLY:{
@@ -298,7 +313,7 @@ void main(void)
 					glm_vec3_rotate(move_vec,player.head_euler[1],GLM_YUP);
 				}
 				glm_vec3_lerp(player.aabb.velocity,move_vec,8.0f*dt,player.aabb.velocity);
-				move_aabb(&world,&player.aabb,dt);
+				move_aabb_against_chunks(&world.chunks,&player.aabb,dt);
 				break;
 			}
 		}
@@ -310,17 +325,17 @@ void main(void)
 		glm_vec3_negate_to(c_backward,player_look);
 		glm_vec3_scale(player_look,5.0f,player_look);
 		BlockRayCastResult rcr;
-		cast_ray_into_blocks(&world,player_head,player_look,&rcr);
+		cast_ray_into_blocks(&world.chunks,player_head,player_look,&rcr);
 		if (rcr.block){
 			if (keys.just_attacked){
-				set_block(&world,rcr.block_pos,BLOCK_AIR);
-				cast_ray_into_blocks(&world,player_head,player_look,&rcr);
+				set_block(&world.chunks,rcr.block_pos,BLOCK_AIR);
+				cast_ray_into_blocks(&world.chunks,player_head,player_look,&rcr);
 				keys.just_attacked = false;
 			} else if (keys.just_interacted){
 				ivec3 new_block_pos;
 				glm_ivec3_add(rcr.block_pos,rcr.face_normal,new_block_pos);
-				set_block(&world,new_block_pos,BLOCK_RED_GLASS);
-				cast_ray_into_blocks(&world,player_head,player_look,&rcr);
+				set_block(&world.chunks,new_block_pos,BLOCK_RED_GLASS);
+				cast_ray_into_blocks(&world.chunks,player_head,player_look,&rcr);
 				keys.just_interacted = false;
 			}
 		}
@@ -335,13 +350,19 @@ void main(void)
 			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&world.chunks,msg.cur_pos);
 			if (!b){
 				b = ChunkLinkedHashListNew(&world.chunks,msg.cur_pos);
-				ChunkLinkedHashListBucket *oldb = world.chunks.first;
-				while (oldb && manhattan_distance_2d(oldb->position,chunk_pos) <= chunk_radius){
-					oldb = oldb->next;
+				ChunkLinkedHashListBucket *furthest = 0;
+				int dist_to_furthest = 0;
+				for (ChunkLinkedHashListBucket *oldb = world.chunks.first; oldb; oldb = oldb->next){
+					int md = manhattan_distance_2d(oldb->position,chunk_pos);
+					if (md > dist_to_furthest){
+						furthest = oldb;
+						dist_to_furthest = md;
+					}
 				}
-				if (oldb){
-					b->chunk = oldb->chunk;
-					ChunkLinkedHashListRemove(&world.chunks,oldb);
+				if (furthest && dist_to_furthest > chunk_radius){
+					b->chunk = furthest->chunk;
+					ChunkLinkedHashListRemove(&world.chunks,furthest);
+					memset(b->chunk,0,sizeof(Chunk));
 				} else {
 					b->chunk = zalloc_or_die(sizeof(Chunk));
 				}

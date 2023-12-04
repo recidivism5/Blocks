@@ -27,20 +27,7 @@ add_subdirectory(third_party/openal-soft)
 add_subdirectory(third_party/cglm)
 
 include_directories(include)
-set(BLOCKS-SRC
-	include/base.h
-	include/camera.h
-	include/player.h
-	include/renderer.h
-	include/world.h
-
-	src/base.c
-	src/camera.c
-	src/main.c
-	src/player.c
-	src/renderer.c
-	src/world.c
-)
+file(GLOB_RECURSE BLOCKS-SRC CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 	 
 add_executable( Blocks ${BLOCKS-SRC} )
 if(MSVC)
