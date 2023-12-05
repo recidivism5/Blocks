@@ -31,6 +31,7 @@ typedef enum {
 
 #define CHUNK_WIDTH 16
 #define CHUNK_HEIGHT 256
+#define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
 
 TSTRUCT(Block){
 	uint8_t id, light[3];
@@ -38,11 +39,6 @@ TSTRUCT(Block){
 
 #define SKYLIGHT(v) ((v)>>4)
 #define BLOCKLIGHT(v) ((v)&0x0f)
-
-TSTRUCT(BlockPositionPair){
-	Block *block;
-	ivec3 position;
-};
 
 TSTRUCT(Chunk){
 	bool neighbors_exist[4];
@@ -71,8 +67,6 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListGetChecked(ChunkLinkedHashList *li
 void ChunkLinkedHashListRemove(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b);
 
 ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ivec2 position);
-
-#define BLOCK_AT(x,y,z) ((y)*CHUNK_WIDTH*CHUNK_WIDTH + (z)*CHUNK_WIDTH + (x))
 
 void gen_chunk(ChunkLinkedHashListBucket *b);
 

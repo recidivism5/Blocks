@@ -99,87 +99,55 @@ ChunkLinkedHashListBucket *ChunkLinkedHashListNew(ChunkLinkedHashList *list, ive
 
 void gen_chunk(ChunkLinkedHashListBucket *b){
 	Chunk *c = b->chunk;
-#define HEIGHTMAP_WIDTH (CHUNK_WIDTH+1)
-#define HEIGHT_AT(x,z) ((z)*HEIGHTMAP_WIDTH+(x))
 	ivec2 cbase = {b->position[0]*CHUNK_WIDTH,b->position[1]*CHUNK_WIDTH};
-	static float height_map[HEIGHTMAP_WIDTH*HEIGHTMAP_WIDTH];
-	for (int z = 0; z < HEIGHTMAP_WIDTH; z+=4){
-		for (int x = 0; x < HEIGHTMAP_WIDTH; x+=4){
-			height_map[HEIGHT_AT(x,z)] = 0.4f+0.2f*fractal_perlin_noise_2d(cbase[0]+x,cbase[1]+z,0.005f,8);
+	static float heightmap[3][3];
+	for (int x = 0; x < 3; x++){
+		for (int z = 0; z < 3; z++){
+			heightmap[x][z] = 0.5f+0.25f*fractal_perlin_noise_2d(cbase[0]+x*8,cbase[1]+z*8,0.005f,4);
 		}
 	}
-	for (int z = 0; z < CHUNK_WIDTH; z++){
-		for (int x = 0; x < CHUNK_WIDTH; x++){
-			int min[2] = {(x/4)*4,(z/4)*4};
-			int max[2] = {min[0]+4,min[1]+4};
-			float t[2] = {
-				(float)(x%4)/4.0f,
-				(float)(z%4)/4.0f
-			};
-			height_map[HEIGHT_AT(x,z)] =
-				glm_lerp(
-					glm_lerp(height_map[HEIGHT_AT(min[0],min[1])],height_map[HEIGHT_AT(max[0],min[1])],t[0]),
-					glm_lerp(height_map[HEIGHT_AT(min[0],max[1])],height_map[HEIGHT_AT(max[0],max[1])],t[0]),
-					t[1]
-				);
-		}
-	}
-#define DENSITYMAP_WIDTH (CHUNK_WIDTH+1)
-#define DENSITYMAP_HEIGHT (CHUNK_HEIGHT+1)
-#define DENSITY_AT(x,y,z) ((y)*DENSITYMAP_WIDTH*DENSITYMAP_WIDTH + (z)*DENSITYMAP_WIDTH + (x))
-	static float density_map[DENSITYMAP_WIDTH*DENSITYMAP_WIDTH*DENSITYMAP_HEIGHT];
-	for (int y = 0; y < DENSITYMAP_HEIGHT; y+=8){
-		for (int z = 0; z < DENSITYMAP_WIDTH; z+=4){
-			for (int x = 0; x < DENSITYMAP_WIDTH; x+=4){
-				density_map[DENSITY_AT(x,y,z)] = fractal_perlin_noise_3d(cbase[0]+x,y,cbase[1]+z,0.005f,8) + 1.4f*(height_map[HEIGHT_AT(x,z)]-(float)y/CHUNK_HEIGHT);
+	static float densitymap[3][CHUNK_HEIGHT/8+1][3];
+	float invh = 1.0f / CHUNK_HEIGHT;
+	for (int x = 0; x < 3; x++){
+		for (int y = 0; y < (CHUNK_HEIGHT/8+1); y++){
+			for (int z = 0; z < 3; z++){
+				densitymap[x][y][z] = fractal_perlin_noise_3d(cbase[0]+x*8,y*8,cbase[1]+z*8,0.005f,8);
 			}
 		}
 	}
+	float inv8 = 1.0f/8.0f;
 	for (int y = 0; y < CHUNK_HEIGHT; y++){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				int min[3] = {(x/4)*4,(y/8)*8,(z/4)*4};
-				int max[3] = {min[0]+4,min[1]+8,min[2]+4};
-				float t[3] = {
-					(float)(x%4)/4.0f,
-					(float)(y%8)/8.0f,
-					(float)(z%4)/4.0f
-				};
-				density_map[DENSITY_AT(x,y,z)] =
+				int xd = x/8, yd = y/8, zd = z/8;
+				float xi = (x%8)*inv8, yi = (y%8)*inv8, zi = (z%8)*inv8;
+				float s = 
 					glm_lerp(
 						glm_lerp(
-							glm_lerp(density_map[DENSITY_AT(min[0],min[1],min[2])],density_map[DENSITY_AT(max[0],min[1],min[2])],t[0]),
-							glm_lerp(density_map[DENSITY_AT(min[0],min[1],max[2])],density_map[DENSITY_AT(max[0],min[1],max[2])],t[0]),
-							t[2]
+							glm_lerp(densitymap[xd][yd][zd],densitymap[xd+1][yd][zd],xi),
+							glm_lerp(densitymap[xd][yd+1][zd],densitymap[xd+1][yd+1][zd],xi),
+							yi
 						),
 						glm_lerp(
-							glm_lerp(density_map[DENSITY_AT(min[0],max[1],min[2])],density_map[DENSITY_AT(max[0],max[1],min[2])],t[0]),
-							glm_lerp(density_map[DENSITY_AT(min[0],max[1],max[2])],density_map[DENSITY_AT(max[0],max[1],max[2])],t[0]),
-							t[2]
+							glm_lerp(densitymap[xd][yd][zd+1],densitymap[xd+1][yd][zd+1],xi),
+							glm_lerp(densitymap[xd][yd+1][zd+1],densitymap[xd+1][yd+1][zd+1],xi),
+							yi
 						),
-						t[1]
-					);
-			}
-		}
-	}
-	for (int y = 0; y < CHUNK_HEIGHT; y++){
-		for (int z = 0; z < CHUNK_WIDTH; z++){
-			for (int x = 0; x < CHUNK_WIDTH; x++){
-				float s = density_map[DENSITY_AT(x,y,z)];
-				if (s > 0){
-					bool block_above = density_map[DENSITY_AT(x,y+1,z)] > 0;
-					c->blocks[BLOCK_AT(x,y,z)].id = block_above ? BLOCK_DIRT : BLOCK_GRASS;
+						zi
+					)
+					+ 1.5f * (glm_lerp(
+						glm_lerp(heightmap[xd][zd],heightmap[xd+1][zd],xi),
+						glm_lerp(heightmap[xd][zd+1],heightmap[xd+1][zd+1],xi),
+						zi
+					) - y*invh);
+				if (s > 0.0f){
+					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
 				} else {
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
 				}
 			}
 		}
 	}
-#undef HEIGHTMAP_WIDTH
-#undef HEIGHT_AT
-#undef DENSITYMAP_WIDTH
-#undef DENTIYMAP_HEIGHT
-#undef DENSITY_AT
 }
 
 vec3 cube_verts[] = {
@@ -230,7 +198,7 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
 	float ambient = ambient_light_coefficients[face_id];
 	uint32_t color;
-	if (neighbor){
+	if (0 && neighbor){
 		uint8_t *c = &color;
 		c[0] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[0]),BLOCKLIGHT(neighbor->light[0]))]);
 		c[1] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[1]),BLOCKLIGHT(neighbor->light[1]))]);
@@ -244,8 +212,9 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 			255
 		);
 	}
+	vec3 fpos = {pos[0],pos[1],pos[2]};
 	for (int i = 0; i < 6; i++){
-		glm_vec3_add((vec3){pos[0],pos[1],pos[2]},cube_verts[face_id*6+i],v[i].position);
+		glm_vec3_add(fpos,cube_verts[face_id*6+i],v[i].position);
 		uint8_t ambient = ambient_light_coefficients[face_id] * 255;
 		v[i].color = color;
 	}
@@ -270,76 +239,29 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 	v[5].texcoord[1] = v[0].texcoord[1];
 }
 
-void propagate_light(ChunkLinkedHashList *chunks, BlockPositionPair *bp, IMMBB *bounds){
-	static BlockPositionPair bpp_ring_buffer[CHUNK_HEIGHT*32*32]; //actual capacity = CHUNK_HEIGHT*32*32 - 1
-	bpp_ring_buffer[0] = *bp;
-	int write_index = 1;
-	int read_index = 0;
-	while (read_index != write_index){
-		bp = bpp_ring_buffer+read_index;
-		read_index = (read_index + 1) % COUNT(bpp_ring_buffer);
-		Block *b = bp->block;
-		ivec3 skylight, blocklight;
-		for (int i = 0; i < 3; i++){
-			skylight[i] = SKYLIGHT(b->light[i]);
-			blocklight[i] = BLOCKLIGHT(b->light[i]);
-		}
-		ivec3 neighbor_positions[] = {
-			{bp->position[0]-1,bp->position[1],bp->position[2]},
-			{bp->position[0]+1,bp->position[1],bp->position[2]},
-			{bp->position[0],bp->position[1]-1,bp->position[2]},
-			{bp->position[0],bp->position[1]+1,bp->position[2]},
-			{bp->position[0],bp->position[1],bp->position[2]-1},
-			{bp->position[0],bp->position[1],bp->position[2]+1},
-		};
-		for (ivec3 *np = neighbor_positions; np < neighbor_positions+COUNT(neighbor_positions); np++){
-			Block *n = get_block(chunks,*np);
-			if (n && block_types[n->id].transparent){
-				ivec3 nskylight, nblocklight;
-				for (int i = 0; i < 3; i++){
-					nskylight[i] = SKYLIGHT(n->light[i]);
-					nblocklight[i] = BLOCKLIGHT(n->light[i]);
-				}
-				bool replace = false;
-				for (int i = 0; i < 3; i++){
-					if ((*np)[1] == bp->position[1] && nskylight[i] < skylight[i]){
-						nskylight[i] = skylight[i];
-						replace = true;
-					} else if (nskylight[i] < skylight[i]-1){
-						nskylight[i] = skylight[i]-1;
-						replace = true;
-					}
-					if (nblocklight[i] < blocklight[i]-1){
-						nblocklight[i] = blocklight[i]-1;
-						replace = true;
-					}
-				}
-				if (replace){
-					for (int i = 0; i < 3; i++){
-						n->light[i] = (nskylight[i]<<8) | nblocklight[i];
-					}
-					if ((write_index + 1) % COUNT(bpp_ring_buffer) == read_index){
-						fatal_error("propagate_light overflowed ring buffer");
-					}
-					bpp_ring_buffer[write_index].block = n;
-					glm_ivec3_copy(*np,bpp_ring_buffer[write_index].position);
-					write_index = (write_index + 1) % COUNT(bpp_ring_buffer);
-				}
-			}
-		}
-	}
+TSTRUCT(LightPropRingBuffer){
+	uint16_t positions[CHUNK_HEIGHT*CHUNK_WIDTH*CHUNK_WIDTH];
+	uint16_t write_index, read_index;
+};
+
+void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
+	/*
+	Lighting:
+	Propagate all light sources in chunk,
+	then propagate walls into neighboring chunks,
+	then propagate neighboring walls into this chunk
+
+	https://web.archive.org/web/20150910104528/https://www.seedofandromeda.com/blogs/29-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-1
+	https://web.archive.org/web/20150910103315/https://www.seedofandromeda.com/blogs/30-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-2
+	https://0fps.net/2018/02/21/voxel-lighting/
+	https://gamedev.stackexchange.com/questions/91926/how-can-i-build-minecraft-style-light-propagation-without-recursive-functions
+
+	Ambient occlusion: https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
+	*/
 }
 
 void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 	/*
-	Lighting:
-	Max range of a single skylight is a chunk height column expanded out by 15 in all directions.
-	Aka a CHUNK_HEIGHT * 31 * 31 volume.
-	Rounding up, a CHUNK_HEIGHT * 32 * 32 length ring buffer is plenty for light propagation.
-	You could potentially keep an MMBB for your lighting update and only remesh intersecting chunks.
-	Propagate skylight, then propagate neighbor walls.
-	static BlockPositionPair bpp_ring_buffer[CHUNK_HEIGHT*32*32]; //actual capacity = CHUNK_HEIGHT*32*32 - 1
-
 	benchmark:
 	meshing:
 		do each edge, excluding corners
@@ -349,21 +271,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 		vs current method
 	*/
 	Chunk *c = bucket->chunk;
-	IMMBB light_bounds;
 	ivec3 bp;
-	for (bp[2] = 0; bp[2] < CHUNK_WIDTH; bp[2]++){
-		for (bp[0] = 0; bp[0] < CHUNK_WIDTH; bp[0]++){
-			for (bp[1] = CHUNK_HEIGHT-1; bp[1] >= 0; bp[1]--){
-				Block *block = c->blocks + BLOCK_AT(bp[0],bp[1],bp[2]);
-				if (!block_types[block->id].transparent){
-					break;
-				}
-				block->light[0] = 0xf0;
-				block->light[1] = 0xf0;
-				block->light[2] = 0xf0;
-			}
-		}
-	}
 
 	ChunkLinkedHashListBucket *neighbor_buckets[4] = {
 		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]-1,bucket->position[1]}),
@@ -403,30 +311,30 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (bp[0] == 0){
 						if (neighbors[0]){
 							neighbor_block = neighbors[0]->blocks+BLOCK_AT(CHUNK_WIDTH-1,bp[1],bp[2]);
-							if (block_types[neighbor_block->id].transparent){
-								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
-							}
+						} else {
+							goto L0;
 						}
 					} else {
 						neighbor_block = c->blocks+BLOCK_AT(bp[0]-1,bp[1],bp[2]);
-						if (block_types[neighbor_block->id].transparent){
-							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
-						}
 					}
+					if (block_types[neighbor_block->id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
+					}
+					L0:
 
 					if (bp[0] == (CHUNK_WIDTH-1)){
 						if (neighbors[1]){
 							neighbor_block = neighbors[1]->blocks+BLOCK_AT(0,bp[1],bp[2]);
-							if (block_types[neighbor_block->id].transparent){
-								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
-							}
+						} else {
+							goto L1;
 						}
 					} else {
 						neighbor_block = c->blocks+BLOCK_AT(bp[0]+1,bp[1],bp[2]);
-						if (block_types[neighbor_block->id].transparent){
-							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
-						}
 					}
+					if (block_types[neighbor_block->id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
+					}
+					L1:
 
 					if (bp[1] > 0){
 						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1]-1,bp[2]);
@@ -449,30 +357,30 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (bp[2] == 0){
 						if (neighbors[2]){
 							neighbor_block = neighbors[2]->blocks+BLOCK_AT(bp[0],bp[1],CHUNK_WIDTH-1);
-							if (block_types[neighbor_block->id].transparent){
-								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
-							}
+						} else {
+							goto L2;
 						}
 					} else {
 						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1],bp[2]-1);
-						if (block_types[neighbor_block->id].transparent){
-							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
-						}
 					}
+					if (block_types[neighbor_block->id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
+					}
+					L2:
 
 					if (bp[2] == (CHUNK_WIDTH-1)){
 						if (neighbors[3]){
 							neighbor_block = neighbors[3]->blocks+BLOCK_AT(bp[0],bp[1],0);
-							if (block_types[neighbor_block->id].transparent){
-								append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
-							}
+						} else {
+							goto L3;
 						}
 					} else {
 						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1],bp[2]+1);
-						if (block_types[neighbor_block->id].transparent){
-							append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
-						}
 					}
+					if (block_types[neighbor_block->id].transparent){
+						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
+					}
+					L3:;
 				}
 			}
 		}

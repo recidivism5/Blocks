@@ -234,7 +234,7 @@ void main(void)
 	texture_from_file(&block_atlas,"../res/blocks.png");
 	srand(time(0));
 
-	init_player(&player,(vec3){8,80,8},(vec3){0,0,0});
+	init_player(&player,(vec3){8,CHUNK_HEIGHT,8},(vec3){0,0,0});
 
 	init_block_outline();
 
@@ -346,32 +346,39 @@ void main(void)
 		manhattan_spiral_generator_init(&msg,chunk_pos);
 		int new_chunks = 0;
 		int max_new_chunks_per_frame = 1;
-		while (msg.radius <= chunk_radius){
-			ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&world.chunks,msg.cur_pos);
-			if (!b){
-				b = ChunkLinkedHashListNew(&world.chunks,msg.cur_pos);
-				ChunkLinkedHashListBucket *furthest = 0;
-				int dist_to_furthest = 0;
-				for (ChunkLinkedHashListBucket *oldb = world.chunks.first; oldb; oldb = oldb->next){
-					int md = manhattan_distance_2d(oldb->position,chunk_pos);
-					if (md > dist_to_furthest){
-						furthest = oldb;
-						dist_to_furthest = md;
+		static bool chunk_benchmark_complete = false;
+		double start = glfwGetTime();
+		if (!chunk_benchmark_complete){
+			while (msg.radius <= chunk_radius){
+				ChunkLinkedHashListBucket *b = ChunkLinkedHashListGetChecked(&world.chunks,msg.cur_pos);
+				if (!b){
+					b = ChunkLinkedHashListNew(&world.chunks,msg.cur_pos);
+					ChunkLinkedHashListBucket *furthest = 0;
+					int dist_to_furthest = 0;
+					for (ChunkLinkedHashListBucket *oldb = world.chunks.first; oldb; oldb = oldb->next){
+						int md = manhattan_distance_2d(oldb->position,chunk_pos);
+						if (md > dist_to_furthest){
+							furthest = oldb;
+							dist_to_furthest = md;
+						}
 					}
+					if (furthest && dist_to_furthest > chunk_radius){
+						b->chunk = furthest->chunk;
+						ChunkLinkedHashListRemove(&world.chunks,furthest);
+						memset(b->chunk,0,sizeof(Chunk));
+					} else {
+						b->chunk = zalloc_or_die(sizeof(Chunk));
+					}
+					gen_chunk(b);
+					mesh_chunk(&world.chunks,b);
+					//new_chunks++;
+					//if (new_chunks >= max_new_chunks_per_frame) break;
 				}
-				if (furthest && dist_to_furthest > chunk_radius){
-					b->chunk = furthest->chunk;
-					ChunkLinkedHashListRemove(&world.chunks,furthest);
-					memset(b->chunk,0,sizeof(Chunk));
-				} else {
-					b->chunk = zalloc_or_die(sizeof(Chunk));
-				}
-				gen_chunk(b);
-				mesh_chunk(&world.chunks,b);
-				new_chunks++;
-				if (new_chunks >= max_new_chunks_per_frame) break;
+				manhattan_spiral_generator_get_next_position(&msg);
 			}
-			manhattan_spiral_generator_get_next_position(&msg);
+			double end = glfwGetTime();
+			printf("time to mesh all chunks: %f nanoseconds\n",(end-start)*1000000000.0);
+			chunk_benchmark_complete = true;
 		}
  
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);

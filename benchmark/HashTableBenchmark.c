@@ -189,7 +189,7 @@ void main(){
     }
 
     QueryPerformanceCounter(&end_time);
-    elapsed_time = (double)(end_time.QuadPart - start_time.QuadPart) / frequency.QuadPart * 1000000000.0;
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart) / frequency.QuadPart) * 1000000000.0;
 
     printf("Elapsed time: %f nanoseconds\n", elapsed_time);
 }
