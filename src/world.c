@@ -399,6 +399,7 @@ static void propagate_light_between_blocks(Block *b, ChunkLinkedHashListBucket *
 			}
 		}
 		if (replace){
+			bucket->chunk->remesh = true;
 			ringbuffer.indices[ringbuffer.write_index] = target_index;
 			ringbuffer.write_index = (ringbuffer.write_index + 1) % COUNT(ringbuffer.indices);
 		}
@@ -496,6 +497,10 @@ void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket)
 		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0],bucket->position[1]+1}),
 		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]+1,bucket->position[1]+1}),
 	};
+	for (int i = 0; i < COUNT(neighbors); i++){
+		if (neighbors[i]) neighbors[i]->chunk->remesh = false;
+	}
+	bucket->chunk->remesh = true; //we must mesh bucket
 	ringbuffer.write_index = 0;
 	ringbuffer.read_index = 0;
 	bool skylightmap[CHUNK_WIDTH][CHUNK_WIDTH];
@@ -564,7 +569,7 @@ void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket)
 	}
 
 	for (int i = 0; i < COUNT(neighbors); i++){
-		if (neighbors[i]) mesh_chunk(chunks,neighbors[i]);
+		if (neighbors[i] && neighbors[i]->chunk->remesh) mesh_chunk(chunks,neighbors[i]);
 	}
 }
 
