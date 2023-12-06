@@ -450,14 +450,14 @@ static void propagate_light_between_chunks(ChunkLinkedHashListBucket *from, Chun
 			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
 				for (int z = 0; z < CHUNK_WIDTH; z++){
 					Block *b = from->chunk->blocks+BLOCK_AT(0,y,z);
-					if (!b->id && (b->light[0] || b->light[1] || b->light[2])) propagate_light_between_blocks(b,to,BLOCK_AT(CHUNK_WIDTH-1,y,z),-1);
+					if (!b->id) propagate_light_between_blocks(b,to,BLOCK_AT(CHUNK_WIDTH-1,y,z),-1);
 				}
 			}
 		} else {
 			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
 				for (int z = 0; z < CHUNK_WIDTH; z++){
 					Block *b = from->chunk->blocks+BLOCK_AT(CHUNK_WIDTH-1,y,z);
-					if (!b->id && (b->light[0] || b->light[1] || b->light[2])) propagate_light_between_blocks(b,to,BLOCK_AT(0,y,z),-1);
+					if (!b->id) propagate_light_between_blocks(b,to,BLOCK_AT(0,y,z),-1);
 				}
 			}
 		}
@@ -466,14 +466,14 @@ static void propagate_light_between_chunks(ChunkLinkedHashListBucket *from, Chun
 			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
 				for (int x = 0; x < CHUNK_WIDTH; x++){
 					Block *b = from->chunk->blocks+BLOCK_AT(x,y,0);
-					if (!b->id && (b->light[0] || b->light[1] || b->light[2])) propagate_light_between_blocks(b,to,BLOCK_AT(x,y,CHUNK_WIDTH-1),-1);
+					if (!b->id) propagate_light_between_blocks(b,to,BLOCK_AT(x,y,CHUNK_WIDTH-1),-1);
 				}
 			}
 		} else {
 			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
 				for (int x = 0; x < CHUNK_WIDTH; x++){
 					Block *b = from->chunk->blocks+BLOCK_AT(x,y,CHUNK_WIDTH-1);
-					if (!b->id && (b->light[0] || b->light[1] || b->light[2])) propagate_light_between_blocks(b,to,BLOCK_AT(x,y,0),-1);
+					if (!b->id) propagate_light_between_blocks(b,to,BLOCK_AT(x,y,0),-1);
 				}
 			}
 		}
