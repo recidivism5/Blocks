@@ -156,7 +156,8 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 				Block *b = c->blocks+BLOCK_AT(x,y,z);
 				if (b->id == BLOCK_STONE && last_was_air){
 					b->id = BLOCK_GRASS;
-					for (int i = 1; i <= 3; i++){
+					int range = MIN(3,y);
+					for (int i = 1; i <= range; i++){
 						b = c->blocks+BLOCK_AT(x,y-i,z);
 						if (b->id != BLOCK_STONE){
 							goto LNextColumn;
