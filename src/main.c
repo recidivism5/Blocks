@@ -446,12 +446,13 @@ void main(void)
 
 		if (rcr.block){
 			glUseProgram(color_shader.id);
+			glLineWidth(2.0f);
 			mat4 mvp;
-			float padding = 0.0125f;
+			float padding = 0.005f;
 			vec3 trans = {
-				rcr.block_pos[0]-player_head[0]-padding/2,
-				rcr.block_pos[1]-player_head[1]-padding/2,
-				rcr.block_pos[2]-player_head[2]-padding/2,
+				rcr.block_pos[0]-player_head[0]-padding*0.5f,
+				rcr.block_pos[1]-player_head[1]-padding*0.5f,
+				rcr.block_pos[2]-player_head[2]-padding*0.5f,
 			};
 			glm_translate_make(mvp,trans);
 			mvp[0][0] = 1.0f + padding;
