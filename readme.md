@@ -39,7 +39,7 @@ I'm targetting a kind of mix between classic, alpha and beta. I don't want a net
 ### Build:
 - Have CMake installed
 ```bash
-git clone https://github.com/recidivism5/Blocks.git
+git clone --recursive https://github.com/recidivism5/Blocks.git
 cd Blocks
 mkdir build
 cd build
