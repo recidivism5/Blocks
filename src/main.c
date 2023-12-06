@@ -364,7 +364,7 @@ void main(void)
 				if (furthest && dist_to_furthest > chunk_radius){
 					b->chunk = furthest->chunk;
 					ChunkLinkedHashListRemove(&world.chunks,furthest);
-					memset(b->chunk,0,sizeof(Chunk));
+					memset(b->chunk->blocks,0,sizeof(b->chunk->blocks));
 				} else {
 					b->chunk = zalloc_or_die(sizeof(Chunk));
 				}

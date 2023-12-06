@@ -55,7 +55,7 @@ TSTRUCT(ChunkLinkedHashListBucket){
 };
 
 TSTRUCT(ChunkLinkedHashList){
-	size_t total, used, tombstones;
+	int total, used, tombstones;
 	ChunkLinkedHashListBucket *buckets, *first, *last;
 };
 
@@ -104,6 +104,16 @@ void world_pos_to_chunk_pos(vec3 world_pos, ivec2 chunk_pos);
 Block *get_block(ChunkLinkedHashList *chunks, ivec3 pos);
 
 bool set_block(ChunkLinkedHashList *chunks, ivec3 pos, int id);
+
+TSTRUCT(BlockIdPos){
+	int id;
+	ivec3 position;
+};
+
+TSTRUCT(BlockIdPosList){
+	int total, used;
+	BlockIdPos *elements;
+};
 
 TSTRUCT(BlockRayCastResult){
 	Block *block;

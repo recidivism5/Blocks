@@ -27,7 +27,7 @@ BlockType block_types[] = {
 
 ChunkLinkedHashListBucket *ChunkLinkedHashListGet(ChunkLinkedHashList *list, ivec2 position){
 	if (!list->total) return 0;
-	size_t index = fnv_1a(sizeof(position),position) % list->total;
+	int index = fnv_1a(sizeof(position),position) % list->total;
 	ChunkLinkedHashListBucket *tombstone = 0;
 	while (1){
 		ChunkLinkedHashListBucket *b = list->buckets+index;
@@ -140,10 +140,11 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 						glm_lerp(heightmap[xd][zd+1],heightmap[xd+1][zd+1],xi),
 						zi
 					) - y*invh);
+				Block *b = c->blocks+BLOCK_AT(x,y,z);
 				if (s > 0.0f){
-					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_STONE;
+					b->id = BLOCK_STONE;
 				} else {
-					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
+					b->id = BLOCK_AIR;
 				}
 			}
 		}
