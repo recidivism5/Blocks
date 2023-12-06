@@ -141,9 +141,29 @@ void gen_chunk(ChunkLinkedHashListBucket *b){
 						zi
 					) - y*invh);
 				if (s > 0.0f){
-					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_DIRT;
+					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_STONE;
 				} else {
 					c->blocks[BLOCK_AT(x,y,z)].id = BLOCK_AIR;
+				}
+			}
+		}
+	}
+	for (int z = 0; z < CHUNK_WIDTH; z++){
+		for (int x = 0; x < CHUNK_WIDTH; x++){
+			bool last_was_air = true;
+			LNextColumn:
+			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+				Block *b = c->blocks+BLOCK_AT(x,y,z);
+				if (b->id == BLOCK_STONE && last_was_air){
+					b->id = BLOCK_GRASS;
+					for (int i = 1; i <= 3; i++){
+						b = c->blocks+BLOCK_AT(x,y-i,z);
+						if (b->id != BLOCK_STONE){
+							goto LNextColumn;
+						}
+						b->id = BLOCK_DIRT;
+					}
+					break;
 				}
 			}
 		}
@@ -198,7 +218,7 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 	TextureColorVertex *v = TextureColorVertexListMakeRoom(tvl,6);
 	float ambient = ambient_light_coefficients[face_id];
 	uint32_t color;
-	if (0 && neighbor){
+	if (neighbor){
 		uint8_t *c = &color;
 		c[0] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[0]),BLOCKLIGHT(neighbor->light[0]))]);
 		c[1] = 255*(ambient*light_coefficients[MAX(SKYLIGHT(neighbor->light[1]),BLOCKLIGHT(neighbor->light[1]))]);
@@ -239,37 +259,8 @@ void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Bloc
 	v[5].texcoord[1] = v[0].texcoord[1];
 }
 
-TSTRUCT(LightPropRingBuffer){
-	uint16_t positions[CHUNK_HEIGHT*CHUNK_WIDTH*CHUNK_WIDTH];
-	uint16_t write_index, read_index;
-};
-
-void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
-	/*
-	Lighting:
-	Propagate all light sources in chunk,
-	then propagate walls into neighboring chunks,
-	then propagate neighboring walls into this chunk
-
-	https://web.archive.org/web/20150910104528/https://www.seedofandromeda.com/blogs/29-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-1
-	https://web.archive.org/web/20150910103315/https://www.seedofandromeda.com/blogs/30-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-2
-	https://0fps.net/2018/02/21/voxel-lighting/
-	https://gamedev.stackexchange.com/questions/91926/how-can-i-build-minecraft-style-light-propagation-without-recursive-functions
-
-	Ambient occlusion: https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
-	*/
-}
-
 void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
-	/*
-	benchmark:
-	meshing:
-		do each edge, excluding corners
-		do each corner
-		do middle
 
-		vs current method
-	*/
 	Chunk *c = bucket->chunk;
 	ivec3 bp;
 
@@ -320,7 +311,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (block_types[neighbor_block->id].transparent){
 						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,0,neighbor_block,bt);
 					}
-					L0:
+				L0:
 
 					if (bp[0] == (CHUNK_WIDTH-1)){
 						if (neighbors[1]){
@@ -334,7 +325,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (block_types[neighbor_block->id].transparent){
 						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,1,neighbor_block,bt);
 					}
-					L1:
+				L1:
 
 					if (bp[1] > 0){
 						neighbor_block = c->blocks+BLOCK_AT(bp[0],bp[1]-1,bp[2]);
@@ -366,7 +357,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (block_types[neighbor_block->id].transparent){
 						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,4,neighbor_block,bt);
 					}
-					L2:
+				L2:
 
 					if (bp[2] == (CHUNK_WIDTH-1)){
 						if (neighbors[3]){
@@ -380,7 +371,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 					if (block_types[neighbor_block->id].transparent){
 						append_block_face(bt->transparent ? &c->transparent_verts : &opaque_vl,bp,5,neighbor_block,bt);
 					}
-					L3:;
+				L3:;
 				}
 			}
 		}
@@ -391,6 +382,197 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 	if (opaque_vl.used){
 		gpu_mesh_from_texture_color_verts(&c->opaque_verts,opaque_vl.elements,opaque_vl.used);
 		free(opaque_vl.elements);
+	}
+}
+
+TSTRUCT(LightPropRingBuffer){
+	uint16_t indices[CHUNK_HEIGHT*CHUNK_WIDTH*CHUNK_WIDTH];
+	uint16_t write_index, read_index;
+};
+
+static LightPropRingBuffer ringbuffer;
+
+static void propagate_light_between_blocks(Block *b, ChunkLinkedHashListBucket *bucket, int target_index, int increment){
+	Block *nb = bucket->chunk->blocks+target_index;
+	if (block_types[nb->id].transparent){
+		bool replace = false;
+		for (int i = 0; i < 3; i++){
+			int bsl = SKYLIGHT(b->light[i])+increment;
+			if (SKYLIGHT(nb->light[i]) < bsl){
+				nb->light[i] = (bsl<<4) | BLOCKLIGHT(nb->light[i]);
+				replace = true;
+			}
+		}
+		if (replace){
+			ringbuffer.indices[ringbuffer.write_index] = target_index;
+			ringbuffer.write_index = (ringbuffer.write_index + 1) % COUNT(ringbuffer.indices);
+		}
+	}
+}
+
+static void propagate_light(ChunkLinkedHashListBucket *bucket){
+	while (ringbuffer.read_index != ringbuffer.write_index){
+		int index = ringbuffer.indices[ringbuffer.read_index];
+		ringbuffer.read_index = (ringbuffer.read_index + 1) % COUNT(ringbuffer.indices);
+		Block *b = bucket->chunk->blocks+index;
+		int x = index % CHUNK_WIDTH;
+		int y = index / (CHUNK_WIDTH * CHUNK_WIDTH); 
+		int z = (index % (CHUNK_WIDTH * CHUNK_WIDTH)) / CHUNK_WIDTH;
+		if (x > 0){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x-1,y,z),-1);
+		}
+		if (x < (CHUNK_WIDTH-1)){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x+1,y,z),-1);
+		}
+		if (y > 0){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x,y-1,z),0);
+		}
+		if (y < (CHUNK_HEIGHT-1)){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x,y+1,z),-1);
+		}
+		if (z > 0){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x,y,z-1),-1);
+		}
+		if (z < (CHUNK_WIDTH-1)){
+			propagate_light_between_blocks(b,bucket,BLOCK_AT(x,y,z+1),-1);
+		}
+	}
+}
+
+static void propagate_light_between_chunks(ChunkLinkedHashListBucket *from, ChunkLinkedHashListBucket *to){
+	ivec2 d;
+	glm_ivec2_sub(to->position,from->position,d);
+	if (d[0]){
+		if (d[0] == -1){
+			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+				for (int z = 0; z < CHUNK_WIDTH; z++){
+					propagate_light_between_blocks(from->chunk->blocks+BLOCK_AT(0,y,z),to,BLOCK_AT(CHUNK_WIDTH-1,y,z),-1);
+				}
+			}
+		} else {
+			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+				for (int z = 0; z < CHUNK_WIDTH; z++){
+					propagate_light_between_blocks(from->chunk->blocks+BLOCK_AT(CHUNK_WIDTH-1,y,z),to,BLOCK_AT(0,y,z),-1);
+				}
+			}
+		}
+	} else {
+		if (d[1] == -1){
+			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+				for (int x = 0; x < CHUNK_WIDTH; x++){
+					propagate_light_between_blocks(from->chunk->blocks+BLOCK_AT(x,y,0),to,BLOCK_AT(x,y,CHUNK_WIDTH-1),-1);
+				}
+			}
+		} else {
+			for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+				for (int x = 0; x < CHUNK_WIDTH; x++){
+					propagate_light_between_blocks(from->chunk->blocks+BLOCK_AT(x,y,CHUNK_WIDTH-1),to,BLOCK_AT(x,y,0),-1);
+				}
+			}
+		}
+	}
+	propagate_light(to);
+}
+
+void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
+	/*
+	Lighting:
+	1. Propagate all light sources in chunk,
+	2. Propagate neighboring walls into this chunk
+	3. Propagate walls into neighboring chunks
+	4. Propagate walls of neighboring chunks into corner chunks
+
+	https://web.archive.org/web/20150910104528/https://www.seedofandromeda.com/blogs/29-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-1
+	https://web.archive.org/web/20150910103315/https://www.seedofandromeda.com/blogs/30-fast-flood-fill-lighting-in-a-blocky-voxel-game-pt-2
+	https://0fps.net/2018/02/21/voxel-lighting/
+	https://gamedev.stackexchange.com/questions/91926/how-can-i-build-minecraft-style-light-propagation-without-recursive-functions
+
+	Ambient occlusion: https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
+	*/
+
+	ChunkLinkedHashListBucket *neighbors[] = {
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]-1,bucket->position[1]-1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0],bucket->position[1]-1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]+1,bucket->position[1]-1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]-1,bucket->position[1]}),
+		bucket,
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]+1,bucket->position[1]}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]-1,bucket->position[1]+1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0],bucket->position[1]+1}),
+		ChunkLinkedHashListGetChecked(chunks,(ivec2){bucket->position[0]+1,bucket->position[1]+1}),
+	};
+	ringbuffer.write_index = 0;
+	ringbuffer.read_index = 0;
+	bool skylightmap[CHUNK_WIDTH][CHUNK_WIDTH];
+	for (int x = 0; x < CHUNK_WIDTH; x++){
+		for (int z = 0; z < CHUNK_WIDTH; z++){
+			skylightmap[x][z] = true;
+		}
+	}
+	for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
+		for (int z = 0; z < CHUNK_WIDTH; z++){
+			for (int x = 0; x < CHUNK_WIDTH; x++){
+				Block *b = bucket->chunk->blocks+BLOCK_AT(x,y,z);
+				if (!block_types[b->id].transparent){
+					skylightmap[x][z] = false;
+				} else if (!skylightmap[x][z]){/*
+											   
+											   This is all incorrect. It's sampling skylightmap before it has been computed for this layer. Meaning it can pick up light sources from solid blocks.
+											   Instead we need to sample the actual neighboring blocks.
+											   */
+					//open cell under closed cell
+					if (
+						(x > 0 && skylightmap[x-1][z]) ||
+						(x < (CHUNK_WIDTH-1) && skylightmap[x+1][z]) ||
+						(z > 0 && skylightmap[x][z-1]) ||
+						(z < (CHUNK_WIDTH-1) && skylightmap[x][z+1])
+						){
+						b->light[0] = 14<<4;
+						b->light[1] = 14<<4;
+						b->light[2] = 14<<4;
+						ringbuffer.indices[ringbuffer.write_index] = BLOCK_AT(x,y,z);
+						ringbuffer.write_index = (ringbuffer.write_index + 1) % COUNT(ringbuffer.indices);
+					}
+				} else {
+					//open cell exposed to sky
+					b->light[0] = 15<<4;
+					b->light[1] = 15<<4;
+					b->light[2] = 15<<4;
+				}
+			}
+		}
+	}
+	propagate_light(bucket);
+	//propagate neighbor walls into this chunk:
+	if (neighbors[3]) propagate_light_between_chunks(neighbors[3],neighbors[4]);
+	if (neighbors[5]) propagate_light_between_chunks(neighbors[5],neighbors[4]);
+	if (neighbors[1]) propagate_light_between_chunks(neighbors[1],neighbors[4]);
+	if (neighbors[7]) propagate_light_between_chunks(neighbors[7],neighbors[4]);
+	//propagate walls of this chunk into neighboring chunks:
+	if (neighbors[3]) propagate_light_between_chunks(neighbors[4],neighbors[3]);
+	if (neighbors[5]) propagate_light_between_chunks(neighbors[4],neighbors[5]);
+	if (neighbors[1]) propagate_light_between_chunks(neighbors[4],neighbors[1]);
+	if (neighbors[7]) propagate_light_between_chunks(neighbors[4],neighbors[7]);
+	//propagate neighbor walls into corner chunks:
+	if (neighbors[3]){
+		if (neighbors[0]) propagate_light_between_chunks(neighbors[3],neighbors[0]);
+		if (neighbors[6]) propagate_light_between_chunks(neighbors[3],neighbors[6]);
+	}
+	if (neighbors[5]){
+		if (neighbors[2]) propagate_light_between_chunks(neighbors[5],neighbors[2]);
+		if (neighbors[8]) propagate_light_between_chunks(neighbors[5],neighbors[8]);
+	}
+	if (neighbors[1]){
+		if (neighbors[0]) propagate_light_between_chunks(neighbors[1],neighbors[0]);
+		if (neighbors[2]) propagate_light_between_chunks(neighbors[1],neighbors[2]);
+	}
+	if (neighbors[7]){
+		if (neighbors[6]) propagate_light_between_chunks(neighbors[7],neighbors[6]);
+		if (neighbors[8]) propagate_light_between_chunks(neighbors[7],neighbors[8]);
+	}
+
+	for (int i = 0; i < COUNT(neighbors); i++){
+		if (neighbors[i]) mesh_chunk(chunks,neighbors[i]);
 	}
 }
 

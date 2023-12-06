@@ -80,6 +80,8 @@ void init_light_coefficients();
 
 void append_block_face(TextureColorVertexList *tvl, ivec3 pos, int face_id, Block *neighbor, BlockType *bt);
 
+void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket);
+
 void mesh_chunk(ChunkLinkedHashList *list, ChunkLinkedHashListBucket *b);
 
 TSTRUCT(Region){
