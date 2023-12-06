@@ -41,7 +41,6 @@ TSTRUCT(Block){
 #define BLOCKLIGHT(v) ((v)&0x0f)
 
 TSTRUCT(Chunk){
-	bool neighbors_exist[4];
 	Block blocks[CHUNK_WIDTH*CHUNK_WIDTH*CHUNK_HEIGHT];
 	TextureColorVertexList transparent_verts;
 	GPUMesh opaque_verts;

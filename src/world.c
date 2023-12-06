@@ -275,16 +275,10 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 	for (int i = 0; i < 4; i++){
 		if (neighbor_buckets[i]){
 			neighbors[i] = neighbor_buckets[i]->chunk;
-			c->neighbors_exist[i] = true;
 		} else {
 			neighbors[i] = 0;
-			c->neighbors_exist[i] = false;
 		}
 	}
-	if (neighbors[0] && !neighbors[0]->neighbors_exist[1]) mesh_chunk(chunks,neighbor_buckets[0]);
-	if (neighbors[1] && !neighbors[1]->neighbors_exist[0]) mesh_chunk(chunks,neighbor_buckets[1]);
-	if (neighbors[2] && !neighbors[2]->neighbors_exist[3]) mesh_chunk(chunks,neighbor_buckets[2]);
-	if (neighbors[3] && !neighbors[3]->neighbors_exist[2]) mesh_chunk(chunks,neighbor_buckets[3]);
 
 	if (c->transparent_verts.used){
 		free(c->transparent_verts.elements);
