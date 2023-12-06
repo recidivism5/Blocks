@@ -275,8 +275,10 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 	for (int i = 0; i < 4; i++){
 		if (neighbor_buckets[i]){
 			neighbors[i] = neighbor_buckets[i]->chunk;
+			c->neighbors_exist[i] = true;
 		} else {
 			neighbors[i] = 0;
+			c->neighbors_exist[i] = false;
 		}
 	}
 
@@ -378,6 +380,7 @@ void mesh_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket){
 		gpu_mesh_from_texture_color_verts(&c->opaque_verts,opaque_vl.elements,opaque_vl.used);
 		free(opaque_vl.elements);
 	}
+	c->remesh = false;
 }
 
 TSTRUCT(LightPropRingBuffer){
@@ -568,6 +571,10 @@ void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket)
 		if (neighbors[8]) propagate_light_between_chunks(neighbors[7],neighbors[8]);
 	}
 
+	if (neighbors[3] && !neighbors[3]->chunk->neighbors_exist[1]) mesh_chunk(chunks,neighbors[3]);
+	if (neighbors[5] && !neighbors[5]->chunk->neighbors_exist[0]) mesh_chunk(chunks,neighbors[5]);
+	if (neighbors[1] && !neighbors[1]->chunk->neighbors_exist[3]) mesh_chunk(chunks,neighbors[1]);
+	if (neighbors[7] && !neighbors[7]->chunk->neighbors_exist[2]) mesh_chunk(chunks,neighbors[7]);
 	for (int i = 0; i < COUNT(neighbors); i++){
 		if (neighbors[i] && neighbors[i]->chunk->remesh) mesh_chunk(chunks,neighbors[i]);
 	}
