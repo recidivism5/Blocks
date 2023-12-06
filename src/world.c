@@ -513,25 +513,22 @@ void light_chunk(ChunkLinkedHashList *chunks, ChunkLinkedHashListBucket *bucket)
 	for (int y = CHUNK_HEIGHT-1; y >= 0; y--){
 		for (int z = 0; z < CHUNK_WIDTH; z++){
 			for (int x = 0; x < CHUNK_WIDTH; x++){
-				Block *b = bucket->chunk->blocks+BLOCK_AT(x,y,z);
+				int index = BLOCK_AT(x,y,z);
+				Block *b = bucket->chunk->blocks+index;
 				if (!block_types[b->id].transparent){
 					skylightmap[x][z] = false;
-				} else if (!skylightmap[x][z]){/*
-											   
-											   This is all incorrect. It's sampling skylightmap before it has been computed for this layer. Meaning it can pick up light sources from solid blocks.
-											   Instead we need to sample the actual neighboring blocks.
-											   */
+				} else if (!skylightmap[x][z]){
 					//open cell under closed cell
 					if (
-						(x > 0 && skylightmap[x-1][z]) ||
-						(x < (CHUNK_WIDTH-1) && skylightmap[x+1][z]) ||
-						(z > 0 && skylightmap[x][z-1]) ||
-						(z < (CHUNK_WIDTH-1) && skylightmap[x][z+1])
+						(x > 0 && skylightmap[x-1][z] && block_types[bucket->chunk->blocks[BLOCK_AT(x-1,y,z)].id].transparent) ||
+						(x < (CHUNK_WIDTH-1) && skylightmap[x+1][z] && block_types[bucket->chunk->blocks[BLOCK_AT(x+1,y,z)].id].transparent) ||
+						(z > 0 && skylightmap[x][z-1] && block_types[bucket->chunk->blocks[BLOCK_AT(x,y,z-1)].id].transparent) ||
+						(z < (CHUNK_WIDTH-1) && skylightmap[x][z+1] && block_types[bucket->chunk->blocks[BLOCK_AT(x,y,z+1)].id].transparent)
 						){
 						b->light[0] = 14<<4;
 						b->light[1] = 14<<4;
 						b->light[2] = 14<<4;
-						ringbuffer.indices[ringbuffer.write_index] = BLOCK_AT(x,y,z);
+						ringbuffer.indices[ringbuffer.write_index] = index;
 						ringbuffer.write_index = (ringbuffer.write_index + 1) % COUNT(ringbuffer.indices);
 					}
 				} else {

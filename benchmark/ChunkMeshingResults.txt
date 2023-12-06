@@ -1,1 +1,2 @@
-Combined method: 4379358100 nanoseconds
+naive skylight fill: 8104632400 ns
+fast skylight fill:  6811007000 ns
