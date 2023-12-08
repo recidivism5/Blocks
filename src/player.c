@@ -39,19 +39,18 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			}
 		}
 	}
-#define AABB_EPSILON 0.001f
 	for (MMBB *bm = mbl.elements; bm < mbl.elements+mbl.used; bm++){
 		if (m.min[0] < bm->max[0] && bm->min[0] < m.max[0] && 
 			m.min[2] < bm->max[2] && bm->min[2] < m.max[2]){
 			if (d[1] < 0 && bm->max[1] <= m.min[1]){
 				float nd = bm->max[1] - m.min[1];
 				if (d[1] < nd){
-					d[1] = nd + AABB_EPSILON;
+					d[1] = nd;
 				}
-			} else if (d[1] > 0 && m.max[1] < bm->min[1]){
+			} else if (d[1] > 0 && m.max[1] <= bm->min[1]){
 				float nd = bm->min[1] - m.max[1];
 				if (nd < d[1]){
-					d[1] = nd - AABB_EPSILON;
+					d[1] = nd;
 				}
 			}
 		}
@@ -64,12 +63,12 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			if (d[2] < 0 && bm->max[2] <= m.min[2]){
 				float nd = bm->max[2] - m.min[2];
 				if (d[2] < nd){
-					d[2] = nd + AABB_EPSILON;
+					d[2] = nd;
 				}
-			} else if (d[2] > 0 && m.max[2] < bm->min[2]){
+			} else if (d[2] > 0 && m.max[2] <= bm->min[2]){
 				float nd = bm->min[2] - m.max[2];
 				if (nd < d[2]){
-					d[2] = nd - AABB_EPSILON;
+					d[2] = nd;
 				}
 			}
 		}
@@ -82,12 +81,12 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			if (d[0] < 0 && bm->max[0] <= m.min[0]){
 				float nd = bm->max[0] - m.min[0];
 				if (d[0] < nd){
-					d[0] = nd + AABB_EPSILON;
+					d[0] = nd;
 				}
-			} else if (d[0] > 0 && m.max[0] < bm->min[0]){
+			} else if (d[0] > 0 && m.max[0] <= bm->min[0]){
 				float nd = bm->min[0] - m.max[0];
 				if (nd < d[0]){
-					d[0] = nd - AABB_EPSILON;
+					d[0] = nd;
 				}
 			}
 		}
