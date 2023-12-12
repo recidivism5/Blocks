@@ -214,6 +214,10 @@ void main(void)
  
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef __APPLE__
+   	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // fucking apple
+#endif
 	GLFWwindow *window = create_centered_window(640,480,"Blocks");
  
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -445,7 +449,7 @@ void main(void)
 
 		if (rcr.block){
 			glUseProgram(color_shader.id);
-			glLineWidth(2.0f);
+			//glLineWidth(2.0f);
 			mat4 mvp;
 			float padding = 0.005f;
 			vec3 trans = {

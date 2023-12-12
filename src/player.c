@@ -45,12 +45,12 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			if (d[1] < 0 && bm->max[1] <= m.min[1]){
 				float nd = bm->max[1] - m.min[1];
 				if (d[1] < nd){
-					d[1] = nd;
+					d[1] = nd + 0.001f;
 				}
 			} else if (d[1] > 0 && m.max[1] <= bm->min[1]){
 				float nd = bm->min[1] - m.max[1];
 				if (nd < d[1]){
-					d[1] = nd;
+					d[1] = nd - 0.001f;
 				}
 			}
 		}
@@ -63,12 +63,12 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			if (d[2] < 0 && bm->max[2] <= m.min[2]){
 				float nd = bm->max[2] - m.min[2];
 				if (d[2] < nd){
-					d[2] = nd;
+					d[2] = nd + 0.001f;
 				}
 			} else if (d[2] > 0 && m.max[2] <= bm->min[2]){
 				float nd = bm->min[2] - m.max[2];
 				if (nd < d[2]){
-					d[2] = nd;
+					d[2] = nd - 0.001f;
 				}
 			}
 		}
@@ -81,12 +81,12 @@ void move_aabb_against_chunks(ChunkLinkedHashList *chunks, AABB *a, double dt){
 			if (d[0] < 0 && bm->max[0] <= m.min[0]){
 				float nd = bm->max[0] - m.min[0];
 				if (d[0] < nd){
-					d[0] = nd;
+					d[0] = nd + 0.001f;
 				}
 			} else if (d[0] > 0 && m.max[0] <= bm->min[0]){
 				float nd = bm->min[0] - m.max[0];
 				if (nd < d[0]){
-					d[0] = nd;
+					d[0] = nd - 0.001f;
 				}
 			}
 		}
