@@ -384,7 +384,7 @@ void main(void)
 		if (!chunk_benchmark_complete) printf("time to mesh all chunks: %f nanoseconds\n",(end-start)*1000000000.0);
 		chunk_benchmark_complete = true;
  
-		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+		glClearColor(57/255.0f, 130/255.0f, 207/255.0f, 1.0f);
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
 
