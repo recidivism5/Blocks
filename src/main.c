@@ -186,7 +186,7 @@ TSTRUCT(ChunkLinkedHashListBucketDistance){
 };
 
 int compare_chunk_linked_hash_list_bucket_distance(ChunkLinkedHashListBucketDistance *a, ChunkLinkedHashListBucketDistance *b){
-	return b->distance - a->distance;
+	return a->distance - b->distance;
 }
 
 vec3 player_head;
@@ -406,7 +406,31 @@ void main(void)
 				i++;
 			}
 			qsort(sorted_chunk_buckets,world.chunks.used,sizeof(*sorted_chunk_buckets),compare_chunk_linked_hash_list_bucket_distance);
-			for (i = 0; i < world.chunks.used; i++){
+			//chunks are sorted from nearest to furthest. render opaque blocks:
+			for (i = 0; i < world.chunks.used; i++) {
+				ChunkLinkedHashListBucket* b = sorted_chunk_buckets[i].bucket;
+				if (b->chunk->opaque_verts.vertex_count || b->chunk->transparent_verts.used){
+					mat4 view;
+					vec3 trans = {
+						b->position[0] * CHUNK_WIDTH,
+						0,
+						b->position[1] * CHUNK_WIDTH
+					};
+					glm_vec3_sub(trans, player_head, trans);
+					glm_translate_make(view, trans);
+					glm_mat4_mul(inv_crot, view, view);
+					mat4 mvp;
+					glm_mat4_mul(persp, view, mvp);
+					glUniformMatrix4fv(texture_color_shader.uMVP, 1, GL_FALSE, mvp);
+
+					if (b->chunk->opaque_verts.vertex_count){
+						glBindVertexArray(b->chunk->opaque_verts.vao);
+						glDrawArrays(GL_TRIANGLES, 0, b->chunk->opaque_verts.vertex_count);
+					}
+				}
+			}
+			//render transparent blocks:
+			for (i = world.chunks.used-1; i >= 0; i--){
 				ChunkLinkedHashListBucket *b = sorted_chunk_buckets[i].bucket;
 				if (b->chunk->opaque_verts.vertex_count || b->chunk->transparent_verts.used){
 					mat4 view;
@@ -421,11 +445,6 @@ void main(void)
 					mat4 mvp;
 					glm_mat4_mul(persp,view,mvp);
 					glUniformMatrix4fv(texture_color_shader.uMVP,1,GL_FALSE,mvp);
-
-					if (b->chunk->opaque_verts.vertex_count){
-						glBindVertexArray(b->chunk->opaque_verts.vao);
-						glDrawArrays(GL_TRIANGLES,0,b->chunk->opaque_verts.vertex_count);
-					}
 
 					if (b->chunk->transparent_verts.used){
 						//sort transparent triangles by distance from player_head
