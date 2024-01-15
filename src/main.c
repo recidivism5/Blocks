@@ -256,7 +256,7 @@ void main(void)
 		glfwGetFramebufferSize(window, &width, &height);
 
 		mat4 crot;
-		glm_euler_zyx(player.head_euler,crot);
+		glm_euler_yxz(player.head_euler,crot);
 		vec3 c_right,c_backward;
 		glm_vec3(crot[0],c_right);
 		glm_vec3(crot[2],c_backward);

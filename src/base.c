@@ -3,7 +3,7 @@
 void fatal_error(char *format, ...){
 	va_list args;
 	va_start(args,format);
-	char msg[1024];
+	static char msg[1024];
 	vsnprintf(msg,COUNT(msg),format,args);
 	boxerShow(msg,"Error",BoxerStyleError,BoxerButtonsQuit);
 	va_end(args);
